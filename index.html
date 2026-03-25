@@ -518,15 +518,17 @@
             </aside>
         </main>
 
-        <!-- FOOTER -->
-        <footer
-            style="background:#060A0E; border-top:3px solid #1E2A36; display:flex; align-items:center; padding:0 24px;">
-            <div style="display:flex; gap:20px; font-size:10px; color:#334155; font-weight:700;">
-                <span style="display:flex; align-items:center; gap:6px;"><span
-                        style="width:6px; height:6px; background:#00E5FF; display:inline-block;"></span> 数据模拟：已启用</span>
-                <span style="border-left:1px solid #1E2A36; padding-left:20px;">洪水风险预测接口 (POST /predict)</span>
-            </div>
-        </footer>
+
+    <!-- FOOTER -->
+    <footer style="background:#060A0E; border-top:3px solid #1E2A36; display:flex; align-items:center; padding:0 24px;">
+        <div style="display:flex; gap:20px; font-size:10px; color:#334155; font-weight:700;">
+            <span style="display:flex; align-items:center; gap:6px;"><span
+                    style="width:6px; height:6px; background:#00E5FF; display:inline-block;"></span> 数据模拟：已启用</span>
+            <span style="border-left:1px solid #1E2A36; padding-left:20px;">洪水风险预测接口 (POST /predict)</span>
+            <span id="loadModelStatus" style="margin-left:auto; color:#00E5FF;">正在加载模型...</span>
+        </div>
+    </footer>
+
     </div>
 
     <style>
@@ -652,37 +654,99 @@
 
             // GLTF 真实模型加载
             function loadRealModel(gltfPath) {
+                console.log('🎯 开始加载 GLB 模型');
+                console.log('📁 模型路径:', gltfPath);
+                console.log('🌐 基础 URL:', window.location.origin);
+                console.log('📄 完整路径:', new URL(gltfPath, window.location.href).href);
+
+                // 检查协议
+                if (window.location.protocol === 'file:') {
+                    console.warn('⚠️ 警告：使用 file:// 协议可能导致模型加载失败，请使用 HTTP 服务器');
+                    showViewerMessage('⚠️ 请使用 HTTP 服务器访问（如 Live Server）', true);
+                }
+
                 const loader = new THREE.GLTFLoader();
-                loader.load(gltfPath, (gltf) => {
-                    scene.remove(twinModel);
-                    twinModel = gltf.scene;
-                    scene.add(twinModel);
 
-                    const box = new THREE.Box3().setFromObject(twinModel);
-                    const center = box.getCenter(new THREE.Vector3());
-                    const size = box.getSize(new THREE.Vector3());
-                    twinModel.position.sub(center);
-                    const maxDim = Math.max(size.x, size.y, size.z);
-                    if (maxDim > 0) {
-                        const scale = 2.0 / maxDim;
-                        twinModel.scale.set(scale, scale, scale);
-                    }
+                loader.load(
+                    gltfPath,
+                    (gltf) => {
+                        console.log('✅ 模型加载成功！');
 
-                    twinModel.traverse((node) => {
-                        if (node.isMesh) {
-                            node.castShadow = true;
-                            node.receiveShadow = true;
+                        // 移除旧的占位模型
+                        if (twinModel) {
+                            scene.remove(twinModel);
                         }
-                    });
 
-                    const currentRisk = parseFloat(document.getElementById('riskValue').innerText);
-                    if (!isNaN(currentRisk)) RiskMapper.applyRisk(currentRisk);
+                        // 添加新模型
+                        twinModel = gltf.scene;
+                        scene.add(twinModel);
 
-                    console.log('真实模型加载成功，已自动居中并缩放');
-                }, undefined, (error) => {
-                    console.error('模型加载失败：', error);
-                    showViewerMessage('模型加载失败，请检查文件路径或格式', true);
-                });
+                        // 自动计算边界并居中
+                        const box = new THREE.Box3().setFromObject(twinModel);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+
+                        // 居中模型
+                        twinModel.position.sub(center);
+
+                        // 自动缩放以适应场景
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        if (maxDim > 0) {
+                            const scale = 2.0 / maxDim;
+                            twinModel.scale.set(scale, scale, scale);
+                        }
+
+                        // 设置阴影
+                        twinModel.traverse((node) => {
+                            if (node.isMesh) {
+                                node.castShadow = true;
+                                node.receiveShadow = true;
+                            }
+                        });
+
+                        // 应用当前风险状态（如果有）
+                        const riskElement = document.getElementById('riskValue');
+                        if (riskElement) {
+                            const currentRisk = parseFloat(riskElement.innerText);
+                            if (!isNaN(currentRisk) && currentRisk > 0) {
+                                RiskMapper.applyRisk(currentRisk);
+                            }
+                        }
+
+                        console.log('✨ 模型已自动居中并缩放');
+                        console.log('📏 模型尺寸:', size);
+                        console.log('🎨 缩放比例:', twinModel.scale);
+
+                        // 更新加载状态
+                        const statusEl = document.getElementById('loadModelStatus');
+                        if (statusEl) {
+                            statusEl.innerText = '✓ 模型已加载';
+                            statusEl.style.color = '#00FF9D';
+                        }
+
+                        showViewerMessage('✓ 彩虹桥模型加载成功', false);
+                    },
+
+                    (xhr) => {
+                        // 加载进度
+                        const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+                        console.log(`📊 加载进度：${percent}%`);
+                    },
+                    (error) => {
+                        console.error('❌ 模型加载失败:', error);
+                        console.error('错误详情:', error.message);
+
+                        let errorMsg = '模型加载失败';
+
+                        if (error.message && error.message.includes('404')) {
+                            errorMsg = '❌ 找不到模型文件\n请检查 my_digital_twin_model.glb 是否存在';
+                        } else if (error.message && error.message.includes('NetworkError')) {
+                            errorMsg = '❌ 网络错误\n请检查网络连接和文件路径';
+                        }
+
+                        showViewerMessage(errorMsg, true);
+                    }
+                );
             }
 
             return { init, getTwinModel, loadRealModel };
@@ -1190,24 +1254,27 @@
         }
 
         // ----------------------------------------------------------------------------
-        // 初始化系统
-        // ----------------------------------------------------------------------------
-        (async function initSystem() {
-            TwinRenderer.init();
+            // 初始化系统
+            // ----------------------------------------------------------------------------
+            (async function initSystem() {
+                TwinRenderer.init();
 
-            // 尝试加载真实 GLB 模型（与 HTML 同目录）
-            TwinRenderer.loadRealModel('my_digital_twin_model.glb');
+                // 加载 GLB 模型 - 使用相对路径（适用于 GitHub Pages）
+                const modelPath = 'my_digital_twin_model.glb';
+                console.log('🔍 正在加载模型:', modelPath);
+                console.log('📍 当前页面路径:', window.location.href);
+                TwinRenderer.loadRealModel(modelPath);
 
-            // 初始化历史数据输入区域，添加示例数据
-            HistoryDataManager.initializeWithSampleData();
+                // 初始化历史数据输入区域，添加示例数据
+                HistoryDataManager.initializeWithSampleData();
 
-            // 设置今天的日期作为默认值
-            const today = new Date().toISOString().split('T')[0];
-            const dateInputs = document.querySelectorAll('input[type="date"]');
-            dateInputs.forEach(input => {
-                if (!input.value) input.value = today;
-            });
-        })();
+                // 设置今天的日期作为默认值
+                const today = new Date().toISOString().split('T')[0];
+                const dateInputs = document.querySelectorAll('input[type="date"]');
+                dateInputs.forEach(input => {
+                    if (!input.value) input.value = today;
+                });
+            })();
 
         // 控制台手动加载模型接口
         window.loadRealTwinModel = (path) => {
