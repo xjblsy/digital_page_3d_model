@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>数字孪生考古遗址洪水风险评估系统</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'field-bg': '#0A0E13',
+                        'field-panel': '#111820',
+                        'field-panel-deep': '#0C1018',
+                        'field-border': '#1E2A36',
+                        'field-accent': '#00E5FF',
+                        'field-danger': '#FF3B30',
+                        'field-success': '#00FF9D',
+                        'field-warn': '#FACC15',
+                        'forest-deep': '#060A0E',
+                    },
+                    fontFamily: {
+                        'mono': ['"JetBrains Mono"', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #0A0E13;
+            color: white;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            font-weight: 700;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        ::-webkit-scrollbar {
+            width: 0;
+        }
+
+        .input-field {
+            background: #000;
+            border: 2px solid #1E2A36;
+            color: #00E5FF;
+            padding: 12px 16px;
+            font-size: 18px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            outline: none;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #00E5FF;
+            box-shadow: 0 0 12px rgba(0, 229, 255, 0.15);
+        }
+
+        select.input-field {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2300E5FF' viewBox='0 0 16 16'%3E%3Cpath d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 40px;
+        }
+
+        .run-btn {
+            background: #00E5FF;
+            color: #000;
+            font-size: 16px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
+            padding: 14px 24px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            transition: all 0.15s;
+        }
+
+        .run-btn:hover {
+            background: #33EBFF;
+        }
+
+        .run-btn:active {
+            transform: translateY(2px);
+        }
+
+        #viewer::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            border: 2px solid rgba(0, 229, 255, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #viewer::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 1px;
+            height: 80px;
+            background: rgba(0, 229, 255, 0.3);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .result-card {
+            background: #080C10;
+            border: 2px solid #00E5FF;
+            padding: 20px 24px;
+            position: relative;
+        }
+
+        .glow-cyan {
+            text-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+        }
+
+        .glow-box-cyan {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 6px;
+            background: #1E2A36;
+            border-radius: 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #00E5FF;
+            box-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+            transition: width 0.6s ease;
+        }
+
+        .label-text {
+            font-size: 13px;
+            color: #64748B;
+            letter-spacing: 0.04em;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .section-header {
+            background: #1E2A36;
+            padding: 8px 14px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            border-left: 5px solid #00E5FF;
+        }
+
+        .overlay-tag {
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(0, 229, 255, 0.4);
+            padding: 6px 12px;
+            font-size: 11px;
+            color: #00E5FF;
+            font-weight: 700;
+            backdrop-filter: blur(4px);
+        }
+
+        .history-item {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #1E2A36;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+
+        .history-input {
+            background: #000;
+            border: 1px solid #1E2A36;
+            color: #00E5FF;
+            padding: 6px 8px;
+            font-size: 14px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            outline: none;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+
+        .add-history-btn {
+            background: #1E2A36;
+            color: #00E5FF;
+            border: 1px solid #00E5FF;
+            padding: 8px 12px;
+            font-size: 14px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 8px;
+        }
+
+        .add-history-btn:hover {
+            background: #00E5FF;
+            color: #000;
+        }
+
+        .upload-btn {
+            background: #007bff;
+            color: white;
+            border: 1px solid #007bff;
+            padding: 8px 12px;
+            font-size: 14px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-bottom: 8px;
+            width: 100%;
+        }
+
+        .upload-btn:hover {
+            background: #0056b3;
+        }
+
+        .remove-history-btn {
+            background: #FF3B30;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+
+        .probability-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        .prob-item {
+            text-align: center;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .prob-low {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .prob-medium {
+            background: rgba(250, 204, 21, 0.2);
+            color: #facc15;
+        }
+
+        .prob-high {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .file-upload-container {
+            border: 2px dashed #1E2A36;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .file-upload-label {
+            display: block;
+            padding: 12px 20px;
+            background: #00E5FF;
+            color: #000;
+            font-weight: 800;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .file-upload-label:hover {
+            background: #33EBFF;
+        }
+
+        .file-info {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #64748B;
+        }
+
+        .sample-data-link {
+            color: #00E5FF;
+            text-decoration: underline;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        /* 折叠面板样式 */
+        .collapsible-section {
+            border: 1px solid #1E2A36;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            background: #1E2A36;
+            padding: 12px 16px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            border-left: 5px solid #00E5FF;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .collapsible-content {
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .collapsible-content.hidden {
+            display: none;
+        }
+
+        .collapse-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div style="display:grid; grid-template-rows: 52px 1fr 30px; height:100vh; width:100%;">
+
+        <!-- HEADER -->
+        <header
+            style="display:flex; align-items:center; justify-content:space-between; padding:0 24px; background:#060A0E; border-bottom:3px solid #00E5FF;">
+            <div style="display:flex; align-items:center; gap:14px;">
+                <div
+                    style="width:34px; height:34px; background:#00E5FF; display:flex; align-items:center; justify-content:center;">
+                    <span class="material-symbols-outlined"
+                        style="color:#000; font-size:20px; font-weight:bold;">radar</span>
+                </div>
+                <div>
+                    <div style="font-size:16px; letter-spacing:-0.02em; line-height:1.1;">数字孪生考古遗址洪水风险评估</div>
+                    <div style="font-size:10px; color:#00E5FF; font-weight:600;">单元：洪水风险预测系统</div>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:10px; color:#475569;">系统状态</div>
+                <div id="statusBadge"
+                    style="font-size:13px; border:2px solid #00FF9D; padding:2px 14px; color:#00FF9D; background:rgba(0,255,157,0.08);">
+                    安全
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN -->
+        <main style="display:grid; grid-template-columns:1fr 420px; overflow:hidden;">
+
+            <!-- LEFT: 3D Viewer -->
+            <section id="viewer" style="position:relative; background:#000; overflow:hidden; cursor:crosshair;">
+                <div style="position:absolute; bottom:20px; left:20px; z-index:10;">
+                    <div class="overlay-tag" style="display:flex; align-items:center; gap:8px;">
+                        <div style="width:8px; height:8px; background:#00E5FF; animation: pulse 1.5s infinite;"></div>
+                        <span>数据传输中</span>
+                    </div>
+                </div>
+                <div style="position:absolute; top:20px; right:20px; z-index:10;">
+                    <div class="overlay-tag" style="border-color:rgba(255,59,48,0.5); color:#FF3B30;">
+                        警告：检测到洪水风险
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT: Control Panel -->
+            <aside
+                style="background:#111820; border-left:3px solid #1E2A36; display:flex; flex-direction:column; overflow:hidden;">
+
+                <!-- Inputs Section -->
+                <div style="padding:20px 24px 16px; flex-shrink:0; overflow-y:auto; max-height:70%;">
+                    <div class="collapsible-section">
+                        <div class="collapsible-header" onclick="toggleSection('historySection')">
+                            <span>历史环境数据</span>
+                            <span class="material-symbols-outlined collapse-icon">expand_more</span>
+                        </div>
+                        <div id="historySection" class="collapsible-content">
+                            <!-- CSV Upload Section -->
+                            <div class="file-upload-container">
+                                <p style="margin-bottom: 12px; color: #00E5FF; font-size: 14px;">上传历史数据文件</p>
+                                <input type="file" id="csvFile" accept=".csv" style="display: none;"
+                                    onchange="handleFileUpload(this.files[0])">
+                                <label for="csvFile" class="file-upload-label">选择CSV文件</label>
+                                <p class="file-info">支持格式: CSV文件<br>
+                                    列标题: date,water_level,precipitation,temperature,humidity<br>
+                                    示例: <span class="sample-data-link" onclick="downloadSampleCSV()">下载示例文件</span>
+                                </p>
+                                <div id="fileInfo" style="margin-top: 8px; font-size: 12px; color: #00FF9D;"></div>
+                            </div>
+
+                            <div id="historyInputsContainer">
+                                <!-- 动态添加历史数据输入项 -->
+                            </div>
+
+                            <button class="add-history-btn" id="addHistoryBtn" style="width:100%; margin-bottom:8px;"
+                                onclick="HistoryDataManager.addHistoryItem()">
+                                手动添加数据记录
+                            </button>
+
+                            <button class="upload-btn" id="uploadHistoryBtn" style="width:100%; margin-bottom:8px;"
+                                onclick="triggerCSVUpload()">
+                                <span class="material-symbols-outlined" style="font-size:16px;">upload</span>
+                                批量导入历史数据
+                            </button>
+
+                            <div style="margin-top:16px; font-size:12px; color:#64748B;">
+                                <p>注意：需要至少14天的历史数据</p>
+                                <p>数据格式：日期、水位、降水量、温度、湿度</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="run-btn" id="predictBtn" onclick="handlePrediction()" style="margin-top:10px;">
+                        <span class="material-symbols-outlined" style="font-size:20px;">analytics</span>
+                        运行洪水风险评估
+                    </button>
+                </div>
+
+                <!-- Spacer -->
+                <div style="flex:1; min-height:0;"></div>
+
+                <!-- Result Section -->
+                <div style="padding:0 24px 16px; flex-shrink:0;">
+                    <div class="result-card glow-box-cyan" id="resultsCard">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px;">
+                            <div>
+                                <div style="font-size:11px; color:#475569; margin-bottom:4px;">实时洪水风险指数</div>
+                                <div id="riskValue" class="glow-cyan"
+                                    style="font-size:48px; font-weight:900; color:#00E5FF; line-height:1; letter-spacing:-0.04em;">
+                                    0.00</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:11px; color:#475569; margin-bottom:4px;">风险等级</div>
+                                <div id="riskLevelText" style="font-size:18px; color:#00E5FF; font-weight:800;">无数据
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div
+                                style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:6px;">
+                                <span style="color:#475569;">高风险概率</span>
+                                <span id="highRiskProb" style="color:#00E5FF;">0.0%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div class="progress-bar" id="riskProgress" style="width:0%"></div>
+                            </div>
+
+                            <div class="probability-display">
+                                <div class="prob-item prob-low">低风险: <span id="probLow">0%</span></div>
+                                <div class="prob-item prob-medium">中风险: <span id="probMedium">0%</span></div>
+                                <div class="prob-item prob-high">高风险: <span id="probHigh">0%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer link -->
+                <div
+                    style="padding:0 24px 14px; font-size:10px; color:#475569; font-weight:400; text-transform:none; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                    <span class="material-symbols-outlined" style="font-size:14px;">view_in_ar</span>
+                    孪生模型：当前为示意几何体，<a href="#" style="color:#00E5FF; text-decoration:underline;"
+                        onclick="alert('预留接口：可在此加载真实遗址GLTF模型'); return false;">点击载入真实模型</a>
+                </div>
+            </aside>
+        </main>
+
+        <!-- FOOTER -->
+        <footer
+            style="background:#060A0E; border-top:3px solid #1E2A36; display:flex; align-items:center; padding:0 24px;">
+            <div style="display:flex; gap:20px; font-size:10px; color:#334155; font-weight:700;">
+                <span style="display:flex; align-items:center; gap:6px;"><span
+                        style="width:6px; height:6px; background:#00E5FF; display:inline-block;"></span> 数据模拟：已启用</span>
+                <span style="border-left:1px solid #1E2A36; padding-left:20px;">洪水风险预测接口 (POST /predict)</span>
+            </div>
+        </footer>
+    </div>
+
+    <style>
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <script>
+        // ============================================================================
+        // 数字孪生考古遗址洪水风险评估系统 - 前端核心逻辑
+        // ============================================================================
+
+        // ----------------------------------------------------------------------------
+        // 模块一：数字孪生渲染模块 (Digital Twin Rendering Layer)
+        // ----------------------------------------------------------------------------
+        const TwinRenderer = (function () {
+            const viewer = document.getElementById('viewer');
+            let scene, camera, renderer, controls, twinModel;
+
+            function init() {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x05070a);
+
+                camera = new THREE.PerspectiveCamera(40, viewer.clientWidth / viewer.clientHeight, 0.1, 1000);
+                camera.position.set(5, 5, 5);
+                camera.lookAt(0, 0, 0);
+
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                viewer.appendChild(renderer.domElement);
+
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.autoRotate = false;
+                controls.enableZoom = true;
+                controls.target.set(0, 0.2, 0);
+
+                const ambientLight = new THREE.AmbientLight(0x405060, 0.5);
+                scene.add(ambientLight);
+
+                const spotLight = new THREE.SpotLight(0x00E5FF, 1.5);
+                spotLight.position.set(10, 10, 10);
+                spotLight.castShadow = true;
+                scene.add(spotLight);
+
+                const fillLight = new THREE.DirectionalLight(0x6688aa, 0.6);
+                fillLight.position.set(-5, 2, 3);
+                scene.add(fillLight);
+
+                const grid = new THREE.GridHelper(20, 20, 0x2D3945, 0x0B0F14);
+                grid.position.y = -1;
+                scene.add(grid);
+
+                // 数字孪生占位模型
+                const geo = new THREE.BoxGeometry(2, 2, 2);
+                const mat = new THREE.MeshStandardMaterial({
+                    color: 0x1E293B, roughness: 0.3, metalness: 0.8, emissiveIntensity: 0.05
+                });
+                twinModel = new THREE.Mesh(geo, mat);
+                twinModel.castShadow = true;
+                twinModel.receiveShadow = true;
+                scene.add(twinModel);
+
+                // 线框边缘
+                const wireframe = new THREE.LineSegments(
+                    new THREE.EdgesGeometry(geo),
+                    new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
+                );
+                twinModel.add(wireframe);
+
+                // 环境装饰柱体
+                const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
+                for (let i = 0; i < 4; i++) {
+                    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6), pillarMat);
+                    pillar.position.x = (i % 2 === 0 ? -1.5 : 1.5);
+                    pillar.position.z = (i < 2 ? -1.5 : 1.5);
+                    pillar.position.y = -0.7;
+                    pillar.castShadow = true;
+                    pillar.receiveShadow = true;
+                    scene.add(pillar);
+                }
+
+                animate();
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+            window.addEventListener('resize', () => {
+                if (!viewer || !camera || !renderer) return;
+                camera.aspect = viewer.clientWidth / viewer.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+            });
+
+            function getTwinModel() { return twinModel; }
+
+            // GLTF 真实模型加载
+            function loadRealModel(gltfPath) {
+                const loader = new THREE.GLTFLoader();
+                loader.load(gltfPath, (gltf) => {
+                    scene.remove(twinModel);
+                    twinModel = gltf.scene;
+                    scene.add(twinModel);
+
+                    const box = new THREE.Box3().setFromObject(twinModel);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    twinModel.position.sub(center);
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    if (maxDim > 0) {
+                        const scale = 2.0 / maxDim;
+                        twinModel.scale.set(scale, scale, scale);
+                    }
+
+                    twinModel.traverse((node) => {
+                        if (node.isMesh) {
+                            node.castShadow = true;
+                            node.receiveShadow = true;
+                        }
+                    });
+
+                    const currentRisk = parseFloat(document.getElementById('riskValue').innerText);
+                    if (!isNaN(currentRisk)) RiskMapper.applyRisk(currentRisk);
+
+                    console.log('真实模型加载成功，已自动居中并缩放');
+                }, undefined, (error) => {
+                    console.error('模型加载失败：', error);
+                    showViewerMessage('模型加载失败，请检查文件路径或格式', true);
+                });
+            }
+
+            return { init, getTwinModel, loadRealModel };
+        })();
+
+        // 在 viewer 上显示临时消息
+        function showViewerMessage(text, isError = true) {
+            const viewer = document.getElementById('viewer');
+            const d = document.createElement('div');
+            d.style.cssText = `
+        position:absolute; top:60px; left:50%; transform:translateX(-50%);
+        background:${isError ? '#FF3B30' : '#00FF9D'}; color:${isError ? 'white' : 'black'};
+        padding:8px 16px; font-size:12px; font-weight:800; z-index:100;
+        border:2px solid ${isError ? '#FF3B30' : '#00FF9D'};
+        box-shadow:0 0 15px ${isError ? 'rgba(255,59,48,0.4)' : 'rgba(0,255,157,0.4)'};
+        font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    `;
+            d.innerText = text;
+            viewer.appendChild(d);
+            setTimeout(() => d.remove(), 3000);
+        }
+
+        // ----------------------------------------------------------------------------
+        // 模块二：风险映射与孪生状态模块 (Risk-to-Twin Mapping Layer)
+        // ----------------------------------------------------------------------------
+        const RiskMapper = (function () {
+            function riskToColor(risk) {
+                const green = new THREE.Color(0x22c55e);
+                const yellow = new THREE.Color(0xfacc15);
+                const red = new THREE.Color(0xef4444);
+                if (risk < 0.5) return green.clone().lerp(yellow, risk * 2);
+                return yellow.clone().lerp(red, (risk - 0.5) * 2);
+            }
+
+            function applyRisk(risk) {
+                const model = TwinRenderer.getTwinModel();
+                if (!model) return;
+                const color = riskToColor(risk);
+                model.traverse((node) => {
+                    if (node.isMesh && node.material) {
+                        const materials = Array.isArray(node.material) ? node.material : [node.material];
+                        materials.forEach(mat => {
+                            mat.color.copy(color);
+                            if (risk > 0.7) {
+                                mat.emissive.setHex(0xef4444);
+                                mat.emissiveIntensity = 0.4;
+                            } else if (risk > 0.4) {
+                                mat.emissive.setHex(0xfacc15);
+                                mat.emissiveIntensity = 0.2;
+                            } else {
+                                mat.emissive.setHex(0x000000);
+                                mat.emissiveIntensity = 0.05;
+                            }
+                        });
+                    }
+                });
+            }
+
+            return { applyRisk };
+        })();
+
+        // ----------------------------------------------------------------------------
+        // 模块三：用户界面与状态管理模块 (UI State Management Layer)
+        // ----------------------------------------------------------------------------
+        const UIUpdater = (function () {
+            function updateUI(risk, riskLevel, highProb, probabilities = null) {
+                document.getElementById('riskValue').innerText = risk.toFixed(2);
+                document.getElementById('highRiskProb').innerText = (highProb * 100).toFixed(1) + '%';
+                document.getElementById('riskProgress').style.width = (risk * 100) + '%';
+
+                // 更新概率分布显示
+                if (probabilities) {
+                    document.getElementById('probLow').innerText = (probabilities.low * 100).toFixed(1) + '%';
+                    document.getElementById('probMedium').innerText = (probabilities.medium * 100).toFixed(1) + '%';
+                    document.getElementById('probHigh').innerText = (probabilities.high * 100).toFixed(1) + '%';
+                }
+
+                const badge = document.getElementById('statusBadge');
+                const lvl = document.getElementById('riskLevelText');
+                const card = document.getElementById('resultsCard');
+
+                if (riskLevel === '低风险' || risk < 0.4) {
+                    badge.innerText = "安全";
+                    badge.style.cssText = "font-size:13px;border:2px solid #00FF9D;padding:2px 14px;color:#00FF9D;background:rgba(0,255,157,0.08);";
+                    lvl.innerText = "低风险";
+                    lvl.style.color = "#00E5FF";
+                    card.style.borderColor = "#00E5FF";
+                } else if (riskLevel === '中风险' || (risk >= 0.4 && risk < 0.7)) {
+                    badge.innerText = "警告";
+                    badge.style.cssText = "font-size:13px;border:2px solid #FACC15;padding:2px 14px;color:#FACC15;background:rgba(250,204,21,0.08);";
+                    lvl.innerText = "中风险";
+                    lvl.style.color = "#FACC15";
+                    card.style.borderColor = "#FACC15";
+                } else {
+                    badge.innerText = "高风险";
+                    badge.style.cssText = "font-size:13px;border:2px solid #FF3B30;padding:2px 14px;color:#FF3B30;background:rgba(255,59,48,0.12);animation:pulse 1.5s infinite;";
+                    lvl.innerText = "高风险";
+                    lvl.style.color = "#FF3B30";
+                    card.style.borderColor = "#FF3B30";
+                }
+            }
+
+            return { updateUI };
+        })();
+
+        // ----------------------------------------------------------------------------
+        // 模块四：历史数据输入管理模块
+        // ----------------------------------------------------------------------------
+        const HistoryDataManager = (function () {
+            let historyCount = 0;
+
+            function createHistoryItem(date = '', waterLevel = '', precipitation = '', temperature = '', humidity = '') {
+                historyCount++;
+                const id = `history-${historyCount}`;
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'history-item';
+                itemDiv.id = id;
+                itemDiv.innerHTML = `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                <div>
+                    <div class="label-text">日期</div>
+                    <input type="date" class="history-input" id="date-${id}" value="${date}">
+                </div>
+                <div>
+                    <div class="label-text">水位 (cm/m)</div>
+                    <input type="number" class="history-input" id="waterLevel-${id}" placeholder="52.5" value="${waterLevel}" step="0.1" min="0">
+                </div>
+                <div>
+                    <div class="label-text">降水量 (mm)</div>
+                    <input type="number" class="history-input" id="precipitation-${id}" placeholder="10" value="${precipitation}" step="0.1" min="0">
+                </div>
+                <div>
+                    <div class="label-text">温度 (°C)</div>
+                    <input type="number" class="history-input" id="temperature-${id}" placeholder="25" value="${temperature}" step="0.1" min="-50" max="100">
+                </div>
+            </div>
+            <div style="display:flex; margin-top:8px;">
+                <div style="flex:1;">
+                    <div class="label-text">湿度 (%)</div>
+                    <input type="number" class="history-input" id="humidity-${id}" placeholder="70" value="${humidity}" min="0" max="100" step="0.1">
+                </div>
+                <button class="remove-history-btn" onclick="HistoryDataManager.removeItem('${id}')">删除</button>
+            </div>
+        `;
+
+                return itemDiv;
+            }
+
+            function addHistoryItem(date = '', waterLevel = '', precipitation = '', temperature = '', humidity = '') {
+                const container = document.getElementById('historyInputsContainer');
+                const item = createHistoryItem(date, waterLevel, precipitation, temperature, humidity);
+                container.appendChild(item);
+            }
+
+            function removeItem(id) {
+                const item = document.getElementById(id);
+                if (item) {
+                    item.remove();
+                }
+            }
+
+            function getAllHistoryData() {
+                const items = document.querySelectorAll('[id^="history-"]');
+                const historyData = [];
+
+                for (let item of items) {
+                    const itemId = item.id;
+                    const date = document.getElementById(`date-${itemId}`).value;
+                    const waterLevel = parseFloat(document.getElementById(`waterLevel-${itemId}`).value);
+                    const precipitation = parseFloat(document.getElementById(`precipitation-${itemId}`).value);
+                    const temperature = parseFloat(document.getElementById(`temperature-${itemId}`).value);
+                    const humidity = parseFloat(document.getElementById(`humidity-${itemId}`).value);
+
+                    // 验证数据完整性
+                    if (date && !isNaN(waterLevel) && !isNaN(precipitation) && !isNaN(temperature) && !isNaN(humidity)) {
+                        historyData.push({
+                            date: date,
+                            water_level: waterLevel,
+                            precipitation: precipitation,
+                            temperature: temperature,
+                            humidity: humidity
+                        });
+                    }
+                }
+
+                return historyData;
+            }
+
+            // 初始化示例数据
+            function initializeWithSampleData() {
+                // 添加14天的示例数据
+                for (let i = 14; i > 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dateString = date.toISOString().split('T')[0];
+
+                    addHistoryItem(
+                        dateString,
+                        50 + Math.random() * 5,     // 水位 50-55
+                        5 + Math.random() * 10,     // 降水量 5-15
+                        20 + Math.random() * 10,    // 温度 20-30
+                        60 + Math.random() * 30     // 湿度 60-90
+                    );
+                }
+            }
+
+            // 批量添加历史数据
+            function addHistoryDataBatch(historyArray) {
+                // 清空现有数据
+                clearAllHistoryItems();
+
+                // 添加新数据
+                historyArray.forEach(item => {
+                    addHistoryItem(item.date, item.water_level, item.precipitation, item.temperature, item.humidity);
+                });
+            }
+
+            // 清空所有历史数据
+            function clearAllHistoryItems() {
+                const container = document.getElementById('historyInputsContainer');
+                while (container.firstChild) {
+                    container.removeChild(container.firstChild);
+                }
+            }
+
+            return {
+                addHistoryItem,
+                removeItem,
+                getAllHistoryData,
+                initializeWithSampleData,
+                addHistoryDataBatch,
+                clearAllHistoryItems
+            };
+        })();
+
+        // ----------------------------------------------------------------------------
+        // 模块五：CSV 文件解析模块
+        // ----------------------------------------------------------------------------
+        const CSVParser = (function () {
+            // 解析CSV文件内容
+            function parseCSV(csvText) {
+                const lines = csvText.split('\n');
+                const headers = lines[0].split(',').map(header => header.trim());
+                const results = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const currentLine = lines[i].trim();
+                    if (!currentLine) continue; // 跳过空行
+
+                    const values = currentLine.split(',');
+                    if (values.length !== headers.length) continue; // 跳过格式不正确的行
+
+                    const obj = {};
+                    for (let j = 0; j < headers.length; j++) {
+                        obj[headers[j]] = values[j].trim();
+                    }
+
+                    // 验证必需字段
+                    if (obj['date'] && obj['water_level'] && obj['precipitation'] && obj['temperature'] && obj['humidity']) {
+                        results.push({
+                            date: obj['date'],
+                            water_level: parseFloat(obj['water_level']),
+                            precipitation: parseFloat(obj['precipitation']),
+                            temperature: parseFloat(obj['temperature']),
+                            humidity: parseFloat(obj['humidity'])
+                        });
+                    }
+                }
+
+                return results;
+            }
+
+            // 验证数据格式
+            function validateData(dataArray) {
+                for (let i = 0; i < dataArray.length; i++) {
+                    const item = dataArray[i];
+                    if (isNaN(item.water_level) || isNaN(item.precipitation) ||
+                        isNaN(item.temperature) || isNaN(item.humidity) ||
+                        !isValidDate(item.date)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // 验证日期格式
+            function isValidDate(dateString) {
+                const date = new Date(dateString);
+                return date instanceof Date && !isNaN(date);
+            }
+
+            return { parseCSV, validateData, isValidDate };
+        })();
+
+        // ----------------------------------------------------------------------------
+        // 模块六：文件上传处理模块
+        // ----------------------------------------------------------------------------
+        function handleFileUpload(file) {
+            if (!file) return;
+
+            if (file.name.split('.').pop().toLowerCase() !== 'csv') {
+                showViewerMessage('请选择CSV文件', true);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const csvText = e.target.result;
+                    const parsedData = CSVParser.parseCSV(csvText);
+
+                    if (parsedData.length === 0) {
+                        showViewerMessage('CSV文件格式不正确或为空', true);
+                        return;
+                    }
+
+                    if (!CSVParser.validateData(parsedData)) {
+                        showViewerMessage('CSV数据格式不正确，请检查数据', true);
+                        return;
+                    }
+
+                    // 添加数据到历史记录
+                    HistoryDataManager.addHistoryDataBatch(parsedData);
+
+                    // 显示成功信息
+                    document.getElementById('fileInfo').innerHTML = `<span style="color: #00FF9D;">✓ 已导入 ${parsedData.length} 条记录</span>`;
+                    showViewerMessage(`成功导入 ${parsedData.length} 条历史数据`, false);
+                } catch (error) {
+                    console.error('CSV解析错误:', error);
+                    showViewerMessage('CSV文件解析失败', true);
+                }
+            };
+            reader.onerror = function () {
+                showViewerMessage('文件读取失败', true);
+            };
+            reader.readAsText(file);
+        }
+
+        // 触发CSV文件上传
+        function triggerCSVUpload() {
+            // 创建一个隐藏的文件输入元素
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.csv';
+
+            fileInput.onchange = function (e) {
+                const file = e.target.files[0];
+                if (file) {
+                    handleFileUpload(file);
+                }
+            };
+
+            fileInput.click(); // 触发文件选择对话框
+        }
+
+        // 下载示例CSV文件
+        function downloadSampleCSV() {
+            const csvContent = "data:text/csv;charset=utf-8," +
+                "date,water_level,precipitation,temperature,humidity\n" +
+                "2025-01-01,52.5,10,25,70\n" +
+                "2025-01-02,53.2,15,26,72\n" +
+                "2025-01-03,51.8,8,24,68\n" +
+                "2025-01-04,54.1,20,27,75\n" +
+                "2025-01-05,50.9,5,23,65\n" +
+                "2025-01-06,55.3,25,28,78\n" +
+                "2025-01-07,52.7,12,25,71\n" +
+                "2025-01-08,53.5,18,26,73\n" +
+                "2025-01-09,51.2,6,24,67\n" +
+                "2025-01-10,54.8,22,27,76\n" +
+                "2025-01-11,50.5,3,22,64\n" +
+                "2025-01-12,56.0,30,29,80\n" +
+                "2025-01-13,52.0,9,24,69\n" +
+                "2025-01-14,53.8,16,26,74";
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "sample_historical_data.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // ----------------------------------------------------------------------------
+        // 模块七：数据感知与洪水风险预测接口模块
+        // ----------------------------------------------------------------------------
+        const PredictionService = (function () {
+            async function predict(data) {
+                const url = 'https://project-digital-twin.zeabur.app/predict';
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    }
+                    const result = await response.json();
+
+                    if (result.success) {
+                        return {
+                            risk: result.risk,
+                            risk_level: result.risk_level,
+                            high_risk_probability: result.high_risk_probability,
+                            probabilities: result.probabilities
+                        };
+                    } else {
+                        throw new Error(`API Error: ${result.error || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.error('预测请求失败:', error);
+                    showViewerMessage('预测服务暂时不可用，使用模拟数据', true);
+
+                    // 模拟数据生成逻辑
+                    const avgWaterLevel = data.historical_data.reduce((sum, item) => sum + item.water_level, 0) / data.historical_data.length;
+                    const avgPrecipitation = data.historical_data.reduce((sum, item) => sum + item.precipitation, 0) / data.historical_data.length;
+
+                    // 基于水位和降水量计算风险
+                    let simulatedRisk = (avgWaterLevel / 100 + avgPrecipitation / 50) / 2;
+                    simulatedRisk = Math.min(1, Math.max(0, simulatedRisk)); // 限制在0-1范围内
+
+                    // 计算概率分布
+                    const highProb = simulatedRisk;
+                    const mediumProb = (1 - simulatedRisk) * 0.5;
+                    const lowProb = (1 - simulatedRisk) * 0.5;
+
+                    return {
+                        risk: simulatedRisk,
+                        risk_level: simulatedRisk < 0.4 ? '低风险' : simulatedRisk < 0.7 ? '中风险' : '高风险',
+                        high_risk_probability: highProb,
+                        probabilities: {
+                            low: lowProb,
+                            medium: mediumProb,
+                            high: highProb
+                        }
+                    };
+                }
+            }
+
+            return { predict };
+        })();
+
+        // ----------------------------------------------------------------------------
+        // 全局预测流程控制器
+        // ----------------------------------------------------------------------------
+        window.handlePrediction = async function () {
+            // 获取所有历史数据
+            const historyData = HistoryDataManager.getAllHistoryData();
+
+            // 验证数据量
+            if (historyData.length < 14) {
+                showViewerMessage(`需要至少14天数据，当前只有${historyData.length}天`, true);
+                return;
+            }
+
+            // 按日期排序
+            historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            const inputData = {
+                historical_data: historyData
+            };
+
+            const btn = document.getElementById('predictBtn');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:20px;animation:spin 1s linear infinite;">refresh</span> 分析中...';
+            btn.disabled = true;
+
+            try {
+                const result = await PredictionService.predict(inputData);
+                RiskMapper.applyRisk(result.risk);
+                UIUpdater.updateUI(result.risk, result.risk_level, result.high_risk_probability, result.probabilities);
+            } catch (e) {
+                console.warn("预测失败", e);
+                showViewerMessage('预测过程中出现错误', true);
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        };
+
+        // ----------------------------------------------------------------------------
+        // 折叠/展开部分
+        // ----------------------------------------------------------------------------
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const header = section.previousElementSibling;
+
+            if (section.classList.contains('hidden')) {
+                section.classList.remove('hidden');
+                header.parentElement.classList.remove('collapsed');
+            } else {
+                section.classList.add('hidden');
+                header.parentElement.classList.add('collapsed');
+            }
+        }
+
+        // ----------------------------------------------------------------------------
+        // 初始化系统
+        // ----------------------------------------------------------------------------
+        (async function initSystem() {
+            TwinRenderer.init();
+
+            // 尝试加载真实 GLB 模型（与 HTML 同目录）
+            TwinRenderer.loadRealModel('my_digital_twin_model.glb');
+
+            // 初始化历史数据输入区域，添加示例数据
+            HistoryDataManager.initializeWithSampleData();
+
+            // 设置今天的日期作为默认值
+            const today = new Date().toISOString().split('T')[0];
+            const dateInputs = document.querySelectorAll('input[type="date"]');
+            dateInputs.forEach(input => {
+                if (!input.value) input.value = today;
+            });
+        })();
+
+        // 控制台手动加载模型接口
+        window.loadRealTwinModel = (path) => {
+            TwinRenderer.loadRealModel(path);
+        };
+
+        // 暴露历史数据管理器到全局作用域
+        window.HistoryDataManager = HistoryDataManager;
+    </script>
+
+</body>
+
+</html>
