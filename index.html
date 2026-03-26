@@ -9,672 +9,1564 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <!-- 加载完整版Three.js，包含所有扩展 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js"></script>
+    
+    <!-- 加载Three.js扩展 -->
     <script>
-        // 手动添加 OrbitControls（因为CDN版本可能没有自动包含）
-        THREE.OrbitControls = function (object, domElement) {
-            if (domElement === undefined) console.warn('THREE.OrbitControls: The second parameter "domElement" is now mandatory.');
-            if (domElement === document) console.error('THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.');
+        // 由于CDN可能不稳定，添加错误处理并提供备用方案
+        if (typeof THREE !== 'undefined') {
+            // 动态加载GLTFLoader和OrbitControls
+            function loadThreeJSExtensions() {
+                return new Promise((resolve, reject) => {
+                    // 创建script标签加载GLTFLoader
+                    const loaderScript = document.createElement('script');
+                    loaderScript.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js';
+                    loaderScript.onload = () => {
+                        // 加载OrbitControls
+                        const controlsScript = document.createElement('script');
+                        controlsScript.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js';
+                        controlsScript.onload = () => {
+                            console.log('✅ Three.js 扩展加载完成');
+                            resolve();
+                        };
+                        controlsScript.onerror = () => {
+                            console.warn('⚠️ 无法从CDN加载OrbitControls，使用内置版本');
+                            // 内置OrbitControls版本
+                            defineOrbitControls();
+                            resolve();
+                        };
+                        document.head.appendChild(controlsScript);
+                    };
+                    loaderScript.onerror = () => {
+                        console.warn('⚠️ 无法从CDN加载GLTFLoader，使用内置版本');
+                        // 内置GLTFLoader版本
+                        defineGLTFLoader();
+                        // 内置OrbitControls版本
+                        defineOrbitControls();
+                        resolve();
+                    };
+                    document.head.appendChild(loaderScript);
+                });
+            }
 
-            this.object = object;
-            this.domElement = domElement;
-            this.enabled = true;
-            this.target = new THREE.Vector3();
-            this.minDistance = 0;
-            this.maxDistance = Infinity;
-            this.minZoom = 0;
-            this.maxZoom = Infinity;
-            this.minPolarAngle = 0; // radians
-            this.maxPolarAngle = Math.PI; // radians
-            this.minAzimuthAngle = -Infinity; // radians
-            this.maxAzimuthAngle = Infinity; // radians
-            this.enableDamping = false;
-            this.dampingFactor = 0.05;
-            this.enableZoom = true;
-            this.zoomSpeed = 1.0;
-            this.enableRotate = true;
-            this.rotateSpeed = 1.0;
-            this.enablePan = true;
-            this.panSpeed = 1.0;
-            this.screenSpacePanning = true; // if true, pan in screen-space
-            this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
-            this.autoRotate = false;
-            this.autoRotateSpeed = 2.0; // 30 seconds per orbit when fps is 60
-            this.keys = { LEFT: 'ArrowLeft', UP: 'ArrowUp', RIGHT: 'ArrowRight', BOTTOM: 'ArrowDown' };
-            this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
-            this.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+            // 内置GLTFLoader定义
+            function defineGLTFLoader() {
+                if (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader === 'undefined') {
+                    THREE.GLTFLoader = function (manager) {
+                        this.manager = (manager !== undefined) ? manager : THREE.DefaultLoadingManager;
 
-            // 定义事件类型常量
-            var STATE = {
-                NONE: -1,
-                ROTATE: 0,
-                DOLLY: 1,
-                PAN: 2,
-                TOUCH_ROTATE: 3,
-                TOUCH_PAN: 4,
-                TOUCH_DOLLY_PAN: 5,
-                TOUCH_DOLLY_ROTATE: 6
-            };
+                        this.load = function (url, onLoad, onProgress, onError) {
+                            var scope = this;
 
-            var state = STATE.NONE;
+                            var path = url.replace(/\\/g, '/').replace(/\/[^\/]*$/, '/') || './';
 
-            // internals
-            var scope = this;
-            var EPS = 0.000001;
-            var spherical = new THREE.Spherical();
-            var sphericalDelta = new THREE.Spherical();
-            var scale = 1;
-            var panOffset = new THREE.Vector3();
-            var zoomChanged = false;
-            var rotateStart = new THREE.Vector2();
-            var rotateEnd = new THREE.Vector2();
-            var rotateDelta = new THREE.Vector2();
-            var panStart = new THREE.Vector2();
-            var panEnd = new THREE.Vector2();
-            var panDelta = new THREE.Vector2();
-            var dollyStart = new THREE.Vector2();
-            var dollyEnd = new THREE.Vector2();
-            var dollyDelta = new THREE.Vector2();
-            var pointers = [];
-            var pointerPositions = {};
+                            var loader = new THREE.FileLoader(scope.manager);
+                            loader.setResponseType('arraybuffer');
+                            loader.setRequestHeader(this.requestHeader);
+                            loader.setPath(this.path);
+                            loader.setWithCredentials(this.withCredentials);
 
-            // 添加事件调度支持
-            var startEvent = { type: 'start' };
-            var endEvent = { type: 'end' };
-            var changeEvent = { type: 'change' };
+                            loader.load(url, function (data) {
+                                try {
+                                    scope.parse(data, onLoad, path);
+                                } catch (e) {
+                                    if (onError) {
+                                        onError(e);
+                                    } else {
+                                        console.error(e);
+                                    }
 
-            // 添加缺失的onPointerDown函数
-            function onPointerDown(event) {
-                if (scope.enabled === false) return;
+                                    scope.manager.itemError(url);
+                                }
+                            }, onProgress, onError);
+                        };
 
-                switch (event.pointerType) {
-                    case 'mouse':
-                    case 'pen':
-                        onMouseDown(event);
-                        break;
+                        this.parse = function (data, onLoad, path) {
+                            console.warn('⚠️ 使用简化版GLTFLoader，仅用于演示目的');
 
-                    // TODO touch
+                            // 创建一个简单的场景作为占位符
+                            var scene = new THREE.Group();
+
+                            // 创建一个简单的几何体作为占位符
+                            var geometry = new THREE.BoxGeometry(2, 2, 2);
+                            var material = new THREE.MeshStandardMaterial({
+                                color: 0x1E293B,
+                                roughness: 0.3,
+                                metalness: 0.8
+                            });
+                            var mesh = new THREE.Mesh(geometry, material);
+                            scene.add(mesh);
+
+                            // 添加线框
+                            var wireframe = new THREE.LineSegments(
+                                new THREE.EdgesGeometry(geometry),
+                                new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
+                            );
+                            mesh.add(wireframe);
+
+                            onLoad({ scene: scene });
+                        };
+
+                        this.setCrossOrigin = function (value) {
+                            this.crossOrigin = value;
+                            return this;
+                        };
+
+                        this.setRequestHeader = function (value) {
+                            this.requestHeader = value;
+                            return this;
+                        };
+
+                        this.setPath = function (value) {
+                            this.path = value;
+                            return this;
+                        };
+                    };
                 }
             }
 
-            // 添加缺失的onMouseDown函数
-            function onMouseDown(event) {
-                if (scope.enabled === false) return;
+            // 内置OrbitControls定义
+            function defineOrbitControls() {
+                if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') {
+                    THREE.OrbitControls = function (object, domElement) {
+                        if (domElement === undefined) console.warn('THREE.OrbitControls: The second parameter "domElement" is now mandatory.');
+                        if (domElement === document) console.error('THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.');
 
-                // Prevent the browser from scrolling.
-                event.preventDefault();
+                        this.object = object;
+                        this.domElement = domElement;
+                        this.enabled = true;
+                        this.target = new THREE.Vector3();
+                        this.minDistance = 0;
+                        this.maxDistance = Infinity;
+                        this.minZoom = 0;
+                        this.maxZoom = Infinity;
+                        this.minPolarAngle = 0; // radians
+                        this.maxPolarAngle = Math.PI; // radians
+                        this.minAzimuthAngle = -Infinity; // radians
+                        this.maxAzimuthAngle = Infinity; // radians
+                        this.enableDamping = false;
+                        this.dampingFactor = 0.05;
+                        this.enableZoom = true;
+                        this.zoomSpeed = 1.0;
+                        this.enableRotate = true;
+                        this.rotateSpeed = 1.0;
+                        this.enablePan = true;
+                        this.panSpeed = 1.0;
+                        this.screenSpacePanning = true; // if true, pan in screen-space
+                        this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+                        this.autoRotate = false;
+                        this.autoRotateSpeed = 2.0; // 30 seconds per orbit when fps is 60
+                        this.keys = { LEFT: 'ArrowLeft', UP: 'ArrowUp', RIGHT: 'ArrowRight', BOTTOM: 'ArrowDown' };
+                        this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+                        this.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
-                var mouseButton = event.button;
+                        // 定义事件类型常量
+                        var STATE = {
+                            NONE: -1,
+                            ROTATE: 0,
+                            DOLLY: 1,
+                            PAN: 2,
+                            TOUCH_ROTATE: 3,
+                            TOUCH_PAN: 4,
+                            TOUCH_DOLLY_PAN: 5,
+                            TOUCH_DOLLY_ROTATE: 6
+                        };
 
-                // Modifiers are preserved for two reasons:
-                // 1. When enabled.something = false (see MouseButton enum)
-                // 2. When the middle mouse button is pressed (see #27211)
-                var modifier = event.shiftKey ? 'shift' : event.ctrlKey ? 'ctrl' : event.altKey ? 'alt' : 'none';
+                        var state = STATE.NONE;
 
-                switch (mouseButton) {
-                    case scope.mouseButtons.LEFT:
-                        if (modifier === scope.mouseButtons.LEFT || scope.object.isOrthographicCamera &&
-                            (scope.mouseButtons.LEFT === THREE.MOUSE.DOLLY || scope.mouseButtons.LEFT === THREE.MOUSE.PAN)) {
-                            if (scope.enableDolly === false) return;
-                            handleMouseDownDolly(event);
-                        } else if (modifier === scope.mouseButtons.MIDDLE || modifier === 'shift' ||
-                            (scope.mouseButtons.LEFT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
-                            if (scope.enablePan === false) return;
-                            handleMouseDownPan(event);
-                        } else if (modifier === scope.mouseButtons.ROTATE || modifier === 'ctrl' ||
-                            (scope.mouseButtons.LEFT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableRotate === false) return;
-                            handleMouseDownRotate(event);
+                        // internals
+                        var scope = this;
+                        var EPS = 0.000001;
+                        var spherical = new THREE.Spherical();
+                        var sphericalDelta = new THREE.Spherical();
+                        var scale = 1;
+                        var panOffset = new THREE.Vector3();
+                        var zoomChanged = false;
+                        var rotateStart = new THREE.Vector2();
+                        var rotateEnd = new THREE.Vector2();
+                        var rotateDelta = new THREE.Vector2();
+                        var panStart = new THREE.Vector2();
+                        var panEnd = new THREE.Vector2();
+                        var panDelta = new THREE.Vector2();
+                        var dollyStart = new THREE.Vector2();
+                        var dollyEnd = new THREE.Vector2();
+                        var dollyDelta = new THREE.Vector2();
+                        var pointers = [];
+                        var pointerPositions = {};
+
+                        // 添加事件调度支持
+                        var startEvent = { type: 'start' };
+                        var endEvent = { type: 'end' };
+                        var changeEvent = { type: 'change' };
+
+                        // 添加缺失的onPointerDown函数
+                        function onPointerDown(event) {
+                            if (scope.enabled === false) return;
+
+                            switch (event.pointerType) {
+                                case 'mouse':
+                                case 'pen':
+                                    onMouseDown(event);
+                                    break;
+
+                                // TODO touch
+                            }
                         }
 
-                        break;
+                        // 添加缺失的onMouseDown函数
+                        function onMouseDown(event) {
+                            if (scope.enabled === false) return;
 
-                    case scope.mouseButtons.MIDDLE:
-                        if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
-                            (scope.mouseButtons.MIDDLE === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableRotate === false) return;
-                            handleMouseDownRotate(event);
-                        } else if (modifier === scope.mouseButtons.DOLLY || modifier === 'ctrl' ||
-                            (scope.mouseButtons.MIDDLE === THREE.MOUSE.DOLLY && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableDolly === false) return;
-                            handleMouseDownDolly(event);
-                        } else if (modifier === scope.mouseButtons.PAN || modifier === 'alt' ||
-                            (scope.mouseButtons.MIDDLE === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
-                            if (scope.enablePan === false) return;
-                            handleMouseDownPan(event);
+                            // Prevent the browser from scrolling.
+                            event.preventDefault();
+
+                            var mouseButton = event.button;
+
+                            // Modifiers are preserved for two reasons:
+                            // 1. When enabled.something = false (see MouseButton enum)
+                            // 2. When the middle mouse button is pressed (see #27211)
+                            var modifier = event.shiftKey ? 'shift' : event.ctrlKey ? 'ctrl' : event.altKey ? 'alt' : 'none';
+
+                            switch (mouseButton) {
+                                case scope.mouseButtons.LEFT:
+                                    if (modifier === scope.mouseButtons.LEFT || scope.object.isOrthographicCamera &&
+                                        (scope.mouseButtons.LEFT === THREE.MOUSE.DOLLY || scope.mouseButtons.LEFT === THREE.MOUSE.PAN)) {
+                                        if (scope.enableDolly === false) return;
+                                        handleMouseDownDolly(event);
+                                    } else if (modifier === scope.mouseButtons.MIDDLE || modifier === 'shift' ||
+                                        (scope.mouseButtons.LEFT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enablePan === false) return;
+                                        handleMouseDownPan(event);
+                                    } else if (modifier === scope.mouseButtons.ROTATE || modifier === 'ctrl' ||
+                                        (scope.mouseButtons.LEFT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableRotate === false) return;
+                                        handleMouseDownRotate(event);
+                                    }
+
+                                    break;
+
+                                case scope.mouseButtons.MIDDLE:
+                                    if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                        (scope.mouseButtons.MIDDLE === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableRotate === false) return;
+                                        handleMouseDownRotate(event);
+                                    } else if (modifier === scope.mouseButtons.DOLLY || modifier === 'ctrl' ||
+                                        (scope.mouseButtons.MIDDLE === THREE.MOUSE.DOLLY && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableDolly === false) return;
+                                        handleMouseDownDolly(event);
+                                    } else if (modifier === scope.mouseButtons.PAN || modifier === 'alt' ||
+                                        (scope.mouseButtons.MIDDLE === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enablePan === false) return;
+                                        handleMouseDownPan(event);
+                                    }
+
+                                    break;
+
+                                case scope.mouseButtons.RIGHT:
+                                    if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                        (scope.mouseButtons.RIGHT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableRotate === false) return;
+                                        handleMouseDownRotate(event);
+                                    } else if (modifier === scope.mouseButtons.PAN || modifier === 'ctrl' ||
+                                        (scope.mouseButtons.RIGHT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enablePan === false) return;
+                                        handleMouseDownPan(event);
+                                    }
+
+                                    break;
+                            }
+
+                            scope.domElement.ownerDocument.addEventListener('pointermove', onPointerMove);
+                            scope.domElement.ownerDocument.addEventListener('pointerup', onPointerUp);
+
+                            scope.dispatchEvent(startEvent);
                         }
 
-                        break;
+                        // 添加缺失的onPointerMove函数
+                        function onPointerMove(event) {
+                            if (scope.enabled === false) return;
 
-                    case scope.mouseButtons.RIGHT:
-                        if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
-                            (scope.mouseButtons.RIGHT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableRotate === false) return;
-                            handleMouseDownRotate(event);
-                        } else if (modifier === scope.mouseButtons.PAN || modifier === 'ctrl' ||
-                            (scope.mouseButtons.RIGHT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
-                            if (scope.enablePan === false) return;
-                            handleMouseDownPan(event);
+                            event.preventDefault();
+
+                            switch (event.pointerType) {
+                                case 'mouse':
+                                case 'pen':
+                                    onMouseMove(event);
+                                    break;
+
+                                // TODO touch
+                            }
                         }
 
-                        break;
+                        // 添加缺失的onMouseMove函数
+                        function onMouseMove(event) {
+                            if (scope.enabled === false) return;
+
+                            var mouseButton = event.button;
+
+                            // Treat middle mouse button as left when shift is held
+                            if (event.shiftKey && mouseButton === scope.mouseButtons.MIDDLE) {
+                                mouseButton = scope.mouseButtons.LEFT;
+                            }
+
+                            // Modifiers are preserved for two reasons:
+                            // 1. When enabled.something = false (see MouseButton enum)
+                            // 2. When the middle mouse button is pressed (see #27211)
+                            var modifier = event.shiftKey ? 'shift' : event.ctrlKey ? 'ctrl' : event.altKey ? 'alt' : 'none';
+
+                            switch (mouseButton) {
+                                case scope.mouseButtons.LEFT:
+                                    if (modifier === scope.mouseButtons.LEFT || scope.object.isOrthographicCamera &&
+                                        (scope.mouseButtons.LEFT === THREE.MOUSE.DOLLY || scope.mouseButtons.LEFT === THREE.MOUSE.PAN)) {
+                                        if (scope.enableDolly === false) return;
+                                        handleMouseMoveDolly(event);
+                                    } else if (modifier === scope.mouseButtons.MIDDLE || modifier === 'shift' ||
+                                        (scope.mouseButtons.LEFT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enablePan === false) return;
+                                        handleMouseMovePan(event);
+                                    } else if (modifier === scope.mouseButtons.ROTATE || modifier === 'ctrl' ||
+                                        (scope.mouseButtons.LEFT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableRotate === false) return;
+                                        handleMouseMoveRotate(event);
+                                    }
+
+                                    break;
+
+                                case scope.mouseButtons.MIDDLE:
+                                    if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                        (scope.mouseButtons.MIDDLE === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableRotate === false) return;
+                                        handleMouseMoveRotate(event);
+                                    } else if (modifier === scope.mouseButtons.DOLLY || modifier === 'ctrl' ||
+                                        (scope.mouseButtons.MIDDLE === THREE.MOUSE.DOLLY && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableDolly === false) return;
+                                        handleMouseMoveDolly(event);
+                                    } else if (modifier === scope.mouseButtons.PAN || modifier === 'alt' ||
+                                        (scope.mouseButtons.MIDDLE === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enablePan === false) return;
+                                        handleMouseMovePan(event);
+                                    }
+
+                                    break;
+
+                                case scope.mouseButtons.RIGHT:
+                                    if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                        (scope.mouseButtons.RIGHT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enableRotate === false) return;
+                                        handleMouseMoveRotate(event);
+                                    } else if (modifier === scope.mouseButtons.PAN || modifier === 'ctrl' ||
+                                        (scope.mouseButtons.RIGHT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                        if (scope.enablePan === false) return;
+                                        handleMouseMovePan(event);
+                                    }
+
+                                    break;
+                            }
+                        }
+
+                        // 添加缺失的onPointerUp函数
+                        function onPointerUp(event) {
+                            if (scope.enabled === false) return;
+
+                            scope.domElement.ownerDocument.removeEventListener('pointermove', onPointerMove);
+                            scope.domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
+
+                            scope.dispatchEvent(endEvent);
+
+                            state = STATE.NONE;
+                        }
+
+                        function getAutoRotationAngle() {
+                            return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+                        }
+
+                        function getZoomScale() {
+                            return Math.pow(0.95, scope.zoomSpeed);
+                        }
+
+                        function rotateLeft(angle) {
+                            sphericalDelta.theta -= angle;
+                        }
+
+                        function rotateUp(angle) {
+                            sphericalDelta.phi -= angle;
+                        }
+
+                        var panLeft = function () {
+                            var v = new THREE.Vector3();
+                            return function panLeft(distance, objectMatrix) {
+                                v.setFromMatrixColumn(objectMatrix, 0); // get X column of objectMatrix
+                                v.multiplyScalar(-distance);
+                                panOffset.add(v);
+                            };
+                        }();
+
+                        var panUp = function () {
+                            var v = new THREE.Vector3();
+                            return function panUp(distance, objectMatrix) {
+                                if (scope.screenSpacePanning === true) {
+                                    v.setFromMatrixColumn(objectMatrix, 1);
+                                } else {
+                                    v.setFromMatrixColumn(objectMatrix, 0);
+                                    v.crossVectors(scope.object.up, v);
+                                }
+                                v.multiplyScalar(distance);
+                                panOffset.add(v);
+                            };
+                        }();
+
+                        var pan = function () {
+                            var offset = new THREE.Vector3();
+                            return function pan(deltaX, deltaY) {
+                                var element = scope.domElement;
+
+                                if (element && scope.object.isPerspectiveCamera) {
+                                    // perspective
+                                    var position = scope.object.position;
+                                    offset.copy(position).sub(scope.target);
+                                    var targetDistance = offset.length();
+
+                                    // half of the fov is center to top of screen
+                                    targetDistance *= Math.tan((scope.object.fov / 2) * Math.PI / 180.0);
+
+                                    // we use only clientHeight here so aspect ratio does not distort speed
+                                    panLeft(2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix);
+                                    panUp(2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix);
+                                } else if (element && scope.object.isOrthographicCamera) {
+                                    // orthographic
+                                    panLeft(deltaX * (scope.object.right - scope.object.left) / scope.object.zoom / element.clientWidth, scope.object.matrix);
+                                    panUp(deltaY * (scope.object.top - scope.object.bottom) / scope.object.zoom / element.clientHeight, scope.object.matrix);
+                                } else {
+                                    // camera neither orthographic nor perspective
+                                    console.warn('WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.');
+                                    scope.enablePan = false;
+                                }
+                            };
+                        }();
+
+                        function dollyOut(dollyScale) {
+                            if (scope.object.isPerspectiveCamera) {
+                                scale /= dollyScale;
+                            } else if (scope.object.isOrthographicCamera) {
+                                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * dollyScale));
+                                scope.object.updateProjectionMatrix();
+                                zoomChanged = true;
+                            } else {
+                                console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
+                                scope.enableZoom = false;
+                            }
+                        }
+
+                        function dollyIn(dollyScale) {
+                            if (scope.object.isPerspectiveCamera) {
+                                scale *= dollyScale;
+                            } else if (scope.object.isOrthographicCamera) {
+                                scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom / dollyScale));
+                                scope.object.updateProjectionMatrix();
+                                zoomChanged = true;
+                            } else {
+                                console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
+                                scope.enableZoom = false;
+                            }
+                        }
+
+                        //
+                        var handleMouseDownRotate = function (event) {
+                            rotateStart.set(event.clientX, event.clientY);
+                        };
+
+                        var handleMouseDownDolly = function (event) {
+                            dollyStart.set(event.clientX, event.clientY);
+                        };
+
+                        var handleMouseDownPan = function (event) {
+                            panStart.set(event.clientX, event.clientY);
+                        };
+
+                        var handleMouseMoveRotate = function (event) {
+                            rotateEnd.set(event.clientX, event.clientY);
+                            rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+
+                            var element = scope.domElement;
+
+                            rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
+                            rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+
+                            rotateStart.copy(rotateEnd);
+                            scope.update();
+                        };
+
+                        var handleMouseMoveDolly = function (event) {
+                            dollyEnd.set(event.clientX, event.clientY);
+                            dollyDelta.subVectors(dollyEnd, dollyStart);
+
+                            if (dollyDelta.y > 0) {
+                                dollyOut(getZoomScale());
+                            } else if (dollyDelta.y < 0) {
+                                dollyIn(getZoomScale());
+                            }
+
+                            dollyStart.copy(dollyEnd);
+                            scope.update();
+                        };
+
+                        var handleMouseMovePan = function (event) {
+                            panEnd.set(event.clientX, event.clientY);
+                            panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+                            pan(panDelta.x, panDelta.y);
+                            panStart.copy(panEnd);
+                            scope.update();
+                        };
+
+                        var handleMouseWheel = function (event) {
+                            if (event.deltaY < 0) {
+                                dollyIn(getZoomScale());
+                            } else if (event.deltaY > 0) {
+                                dollyOut(getZoomScale());
+                            }
+                            scope.update();
+                        };
+
+                        var handleKeyDown = function (event) {
+                            var needsUpdate = false;
+
+                            switch (event.code) {
+                                case scope.keys.UP:
+                                    pan(0, scope.keyPanSpeed);
+                                    needsUpdate = true;
+                                    break;
+                                case scope.keys.BOTTOM:
+                                    pan(0, -scope.keyPanSpeed);
+                                    needsUpdate = true;
+                                    break;
+                                case scope.keys.LEFT:
+                                    pan(scope.keyPanSpeed, 0);
+                                    needsUpdate = true;
+                                    break;
+                                case scope.keys.RIGHT:
+                                    pan(-scope.keyPanSpeed, 0);
+                                    needsUpdate = true;
+                                    break;
+                            }
+
+                            if (needsUpdate) {
+                                // prevent the browser from scrolling on cursor keys
+                                event.preventDefault();
+                                scope.update();
+                            }
+                        };
+
+                        var handleTouchStartRotate = function () {
+                            if (pointers.length == 1) {
+                                rotateStart.set(pointers[0].pageX, pointers[0].pageY);
+                            } else {
+                                var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                                var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                                rotateStart.set(x, y);
+                            }
+                        };
+
+                        var handleTouchStartPan = function () {
+                            if (pointers.length == 1) {
+                                panStart.set(pointers[0].pageX, pointers[0].pageY);
+                            } else {
+                                var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                                var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                                panStart.set(x, y);
+                            }
+                        };
+
+                        var handleTouchStartDolly = function () {
+                            var dx = pointers[0].pageX - pointers[1].pageX;
+                            var dy = pointers[0].pageY - pointers[1].pageY;
+                            var distance = Math.sqrt(dx * dx + dy * dy);
+
+                            dollyStart.set(0, distance);
+                        };
+
+                        var handleTouchStartDollyPan = function () {
+                            if (scope.enableZoom) handleTouchStartDolly();
+                            if (scope.enablePan) handleTouchStartPan();
+                        };
+
+                        var handleTouchMoveRotate = function () {
+                            if (pointers.length == 1) {
+                                rotateEnd.set(pointers[0].pageX, pointers[0].pageY);
+                            } else {
+                                var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                                var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                                rotateEnd.set(x, y);
+                            }
+
+                            rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+
+                            var element = scope.domElement;
+
+                            rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
+                            rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+
+                            rotateStart.copy(rotateEnd);
+                        };
+
+                        var handleTouchMovePan = function () {
+                            if (pointers.length == 1) {
+                                panEnd.set(pointers[0].pageX, pointers[0].pageY);
+                            } else {
+                                var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                                var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                                panEnd.set(x, y);
+                            }
+
+                            panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+                            pan(panDelta.x, panDelta.y);
+                            panStart.copy(panEnd);
+                        };
+
+                        var handleTouchMoveDolly = function () {
+                            var dx = pointers[0].pageX - pointers[1].pageX;
+                            var dy = pointers[0].pageY - pointers[1].pageY;
+                            var distance = Math.sqrt(dx * dx + dy * dy);
+
+                            dollyEnd.set(0, distance);
+                            dollyDelta.set(0, Math.pow(dollyEnd.y / dollyStart.y, scope.zoomSpeed));
+                            dollyOut(dollyDelta.y);
+                            dollyStart.copy(dollyEnd);
+                        };
+
+                        var handleTouchMoveDollyPan = function () {
+                            if (scope.enableZoom) handleTouchMoveDolly();
+                            if (scope.enablePan) handleTouchMovePan();
+                        };
+
+                        // 添加dispatchEvent方法
+                        this.dispatchEvent = function (event) {
+                            // 简单的事件调度实现
+                        };
+
+                        // 添加更新方法
+                        this.update = function () {
+                            var offset = new THREE.Vector3();
+
+                            // so camera.up is the orbit axis
+                            var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0));
+                            var quatInverse = quat.clone().invert();
+
+                            var lastPosition = new THREE.Vector3();
+                            var lastQuaternion = new THREE.Quaternion();
+
+                            return function update(deltaTime) {
+                                var position = scope.object.position;
+
+                                offset.copy(position).sub(scope.target);
+
+                                // rotate offset to "y-axis-is-up" space
+                                offset.applyQuaternion(quat);
+
+                                // angle from z-axis around y-axis
+                                spherical.setFromVector3(offset);
+
+                                if (scope.autoRotate && state === STATE.NONE) {
+                                    rotateLeft(getAutoRotationAngle());
+                                }
+
+                                if (scope.enableDamping) {
+                                    spherical.theta += sphericalDelta.theta * scope.dampingFactor;
+                                    spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+
+                                } else {
+                                    spherical.theta += sphericalDelta.theta;
+                                    spherical.phi += sphericalDelta.phi;
+                                }
+
+                                // restrict theta to be between desired limits
+                                spherical.theta = Math.max(scope.minAzimuthAngle, Math.min(scope.maxAzimuthAngle, spherical.theta));
+
+                                // restrict phi to be between desired limits
+                                spherical.phi = Math.max(scope.minPolarAngle, Math.min(scope.maxPolarAngle, spherical.phi));
+
+                                spherical.makeSafe();
+
+                                spherical.radius *= scale;
+
+                                // restrict radius to be between desired limits
+                                spherical.radius = Math.max(scope.minDistance, Math.min(scope.maxDistance, spherical.radius));
+
+                                // move target to panned location
+
+                                if (scope.enableDamping === true) {
+                                    scope.target.addScaledVector(panOffset, scope.dampingFactor);
+
+                                } else {
+                                    scope.target.add(panOffset);
+                                }
+
+                                offset.setFromSpherical(spherical);
+
+                                // rotate offset back to "camera-up-vector-is-up" space
+                                offset.applyQuaternion(quatInverse);
+
+                                position.copy(scope.target).add(offset);
+
+                                scope.object.lookAt(scope.target);
+
+                                if (scope.enableDamping === true) {
+                                    sphericalDelta.theta *= (1 - scope.dampingFactor);
+                                    sphericalDelta.phi *= (1 - scope.dampingFactor);
+
+                                    panOffset.multiplyScalar(1 - scope.dampingFactor);
+
+                                } else {
+                                    sphericalDelta.set(0, 0, 0);
+
+                                    panOffset.set(0, 0, 0);
+
+                                }
+
+                                scale = 1;
+
+                                // update condition is:
+                                // min(camera displacement, camera rotation in radians)^2 > EPS
+                                // using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+                                if (zoomChanged ||
+                                    lastPosition.distanceToSquared(scope.object.position) > EPS ||
+                                    8 * (1 - lastQuaternion.dot(scope.object.quaternion)) > EPS) {
+
+                                    scope.dispatchEvent(changeEvent);
+
+                                    lastPosition.copy(scope.object.position);
+                                    lastQuaternion.copy(scope.object.quaternion);
+                                    zoomChanged = false;
+
+                                    return true;
+
+                                }
+
+                                return false;
+
+                            };
+                        }();
+
+                        // 添加重置方法
+                        this.reset = function () {
+                            scope.target.copy(scope.target0);
+                            scope.object.position.copy(scope.position0);
+                            scope.object.zoom = scope.zoom0;
+                            scope.object.updateProjectionMatrix();
+
+                            scope.dispatchEvent(changeEvent);
+
+                            scope.update();
+
+                            state = STATE.NONE;
+                        };
+
+                        // 添加保存状态方法
+                        this.saveState = function () {
+                            scope.target0.copy(scope.target);
+                            scope.position0.copy(scope.object.position);
+                            scope.zoom0 = scope.object.zoom;
+                        };
+
+                        // 添加目标点和初始状态属性
+                        this.target0 = this.target.clone();
+                        this.position0 = this.object.position.clone();
+                        this.zoom0 = this.object.zoom;
+
+                        //
+                        scope.domElement.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+
+                        scope.domElement.addEventListener('pointerdown', onPointerDown);
+                        scope.domElement.addEventListener('wheel', handleMouseWheel);
+
+                        scope.domElement.addEventListener('keydown', handleKeyDown);
+
+                        // force an update at start
+                        this.update();
+                    };
+
+                    THREE.MOUSE = { ROTATE: 0, DOLLY: 1, PAN: 2 };
+                    THREE.TOUCH = { ROTATE: 0, DOLLY_PAN: 1 };
                 }
-
-                scope.domElement.ownerDocument.addEventListener('pointermove', onPointerMove);
-                scope.domElement.ownerDocument.addEventListener('pointerup', onPointerUp);
-
-                scope.dispatchEvent(startEvent);
             }
 
-            // 添加缺失的onPointerMove函数
-            function onPointerMove(event) {
-                if (scope.enabled === false) return;
+            // 立即执行扩展加载
+            loadThreeJSExtensions().then(() => {
+                console.log('✅ Three.js 扩展加载完成，系统就绪');
+            }).catch(err => {
+                console.error('❌ Three.js 扩展加载失败:', err);
+            });
+        } else {
+            console.error('❌ Three.js 核心库未加载');
+        }
+    </script>
+    
+    <!-- 使用es6-promise CDN加载GLTFLoader和OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // 检查必要的Three.js组件是否已加载
+        if (typeof THREE === 'undefined') {
+            console.error('Three.js 未加载');
+        } else if (typeof THREE.GLTFLoader === 'undefined') {
+            console.error('GLTFLoader 未加载');
+        } else if (typeof THREE.OrbitControls === 'undefined') {
+            console.error('OrbitControls 未加载');
+        } else {
+            console.log('✅ Three.js 组件加载完成');
+        }
+    </script>
+    
+    <script>
+        // 内置GLTFLoader定义 - 确保在需要时可用
+        function defineGLTFLoader() {
+            if (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader === 'undefined') {
+                THREE.GLTFLoader = function (manager) {
+                    this.manager = (manager !== undefined) ? manager : THREE.DefaultLoadingManager;
 
-                event.preventDefault();
+                    this.load = function (url, onLoad, onProgress, onError) {
+                        var scope = this;
 
-                switch (event.pointerType) {
-                    case 'mouse':
-                    case 'pen':
-                        onMouseMove(event);
-                        break;
+                        var path = url.replace(/\\/g, '/').replace(/\/[^\/]*$/, '/') || './';
 
-                    // TODO touch
-                }
-            }
+                        var loader = new THREE.FileLoader(scope.manager);
+                        loader.setResponseType('arraybuffer');
+                        loader.setRequestHeader(this.requestHeader);
+                        loader.setPath(this.path);
+                        loader.setWithCredentials(this.withCredentials);
 
-            // 添加缺失的onMouseMove函数
-            function onMouseMove(event) {
-                if (scope.enabled === false) return;
+                        loader.load(url, function (data) {
+                            try {
+                                scope.parse(data, onLoad, path);
+                            } catch (e) {
+                                if (onError) {
+                                    onError(e);
+                                } else {
+                                    console.error(e);
+                                }
 
-                var mouseButton = event.button;
+                                scope.manager.itemError(url);
+                            }
+                        }, onProgress, onError);
+                    };
 
-                // Treat middle mouse button as left when shift is held
-                if (event.shiftKey && mouseButton === scope.mouseButtons.MIDDLE) {
-                    mouseButton = scope.mouseButtons.LEFT;
-                }
+                    this.parse = function (data, onLoad, path) {
+                        console.warn('⚠️ 使用简化版GLTFLoader，仅用于演示目的');
 
-                // Modifiers are preserved for two reasons:
-                // 1. When enabled.something = false (see MouseButton enum)
-                // 2. When the middle mouse button is pressed (see #27211)
-                var modifier = event.shiftKey ? 'shift' : event.ctrlKey ? 'ctrl' : event.altKey ? 'alt' : 'none';
+                        // 创建一个简单的场景作为占位符
+                        var scene = new THREE.Group();
 
-                switch (mouseButton) {
-                    case scope.mouseButtons.LEFT:
-                        if (modifier === scope.mouseButtons.LEFT || scope.object.isOrthographicCamera &&
-                            (scope.mouseButtons.LEFT === THREE.MOUSE.DOLLY || scope.mouseButtons.LEFT === THREE.MOUSE.PAN)) {
-                            if (scope.enableDolly === false) return;
-                            handleMouseMoveDolly(event);
-                        } else if (modifier === scope.mouseButtons.MIDDLE || modifier === 'shift' ||
-                            (scope.mouseButtons.LEFT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
-                            if (scope.enablePan === false) return;
-                            handleMouseMovePan(event);
-                        } else if (modifier === scope.mouseButtons.ROTATE || modifier === 'ctrl' ||
-                            (scope.mouseButtons.LEFT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableRotate === false) return;
-                            handleMouseMoveRotate(event);
-                        }
+                        // 创建一个简单的几何体作为占位符
+                        var geometry = new THREE.BoxGeometry(2, 2, 2);
+                        var material = new THREE.MeshStandardMaterial({
+                            color: 0x1E293B,
+                            roughness: 0.3,
+                            metalness: 0.8
+                        });
+                        var mesh = new THREE.Mesh(geometry, material);
+                        scene.add(mesh);
 
-                        break;
+                        // 添加线框
+                        var wireframe = new THREE.LineSegments(
+                            new THREE.EdgesGeometry(geometry),
+                            new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
+                        );
+                        mesh.add(wireframe);
 
-                    case scope.mouseButtons.MIDDLE:
-                        if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
-                            (scope.mouseButtons.MIDDLE === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableRotate === false) return;
-                            handleMouseMoveRotate(event);
-                        } else if (modifier === scope.mouseButtons.DOLLY || modifier === 'ctrl' ||
-                            (scope.mouseButtons.MIDDLE === THREE.MOUSE.DOLLY && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableDolly === false) return;
-                            handleMouseMoveDolly(event);
-                        } else if (modifier === scope.mouseButtons.PAN || modifier === 'alt' ||
-                            (scope.mouseButtons.MIDDLE === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
-                            if (scope.enablePan === false) return;
-                            handleMouseMovePan(event);
-                        }
+                        onLoad({ scene: scene });
+                    };
 
-                        break;
+                    this.setCrossOrigin = function (value) {
+                        this.crossOrigin = value;
+                        return this;
+                    };
 
-                    case scope.mouseButtons.RIGHT:
-                        if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
-                            (scope.mouseButtons.RIGHT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
-                            if (scope.enableRotate === false) return;
-                            handleMouseMoveRotate(event);
-                        } else if (modifier === scope.mouseButtons.PAN || modifier === 'ctrl' ||
-                            (scope.mouseButtons.RIGHT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
-                            if (scope.enablePan === false) return;
-                            handleMouseMovePan(event);
-                        }
+                    this.setRequestHeader = function (value) {
+                        this.requestHeader = value;
+                        return this;
+                    };
 
-                        break;
-                }
-            }
-
-            // 添加缺失的onPointerUp函数
-            function onPointerUp(event) {
-                if (scope.enabled === false) return;
-
-                scope.domElement.ownerDocument.removeEventListener('pointermove', onPointerMove);
-                scope.domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
-
-                scope.dispatchEvent(endEvent);
-
-                state = STATE.NONE;
-            }
-
-            function getAutoRotationAngle() {
-                return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
-            }
-
-            function getZoomScale() {
-                return Math.pow(0.95, scope.zoomSpeed);
-            }
-
-            function rotateLeft(angle) {
-                sphericalDelta.theta -= angle;
-            }
-
-            function rotateUp(angle) {
-                sphericalDelta.phi -= angle;
-            }
-
-            var panLeft = function () {
-                var v = new THREE.Vector3();
-                return function panLeft(distance, objectMatrix) {
-                    v.setFromMatrixColumn(objectMatrix, 0); // get X column of objectMatrix
-                    v.multiplyScalar(-distance);
-                    panOffset.add(v);
+                    this.setPath = function (value) {
+                        this.path = value;
+                        return this;
+                    };
                 };
-            }();
-
-            var panUp = function () {
-                var v = new THREE.Vector3();
-                return function panUp(distance, objectMatrix) {
-                    if (scope.screenSpacePanning === true) {
-                        v.setFromMatrixColumn(objectMatrix, 1);
-                    } else {
-                        v.setFromMatrixColumn(objectMatrix, 0);
-                        v.crossVectors(scope.object.up, v);
-                    }
-                    v.multiplyScalar(distance);
-                    panOffset.add(v);
-                };
-            }();
-
-            var pan = function () {
-                var offset = new THREE.Vector3();
-                return function pan(deltaX, deltaY) {
-                    var element = scope.domElement;
-
-                    if (element && scope.object.isPerspectiveCamera) {
-                        // perspective
-                        var position = scope.object.position;
-                        offset.copy(position).sub(scope.target);
-                        var targetDistance = offset.length();
-
-                        // half of the fov is center to top of screen
-                        targetDistance *= Math.tan((scope.object.fov / 2) * Math.PI / 180.0);
-
-                        // we use only clientHeight here so aspect ratio does not distort speed
-                        panLeft(2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix);
-                        panUp(2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix);
-                    } else if (element && scope.object.isOrthographicCamera) {
-                        // orthographic
-                        panLeft(deltaX * (scope.object.right - scope.object.left) / scope.object.zoom / element.clientWidth, scope.object.matrix);
-                        panUp(deltaY * (scope.object.top - scope.object.bottom) / scope.object.zoom / element.clientHeight, scope.object.matrix);
-                    } else {
-                        // camera neither orthographic nor perspective
-                        console.warn('WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.');
-                        scope.enablePan = false;
-                    }
-                };
-            }();
-
-            function dollyOut(dollyScale) {
-                if (scope.object.isPerspectiveCamera) {
-                    scale /= dollyScale;
-                } else if (scope.object.isOrthographicCamera) {
-                    scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * dollyScale));
-                    scope.object.updateProjectionMatrix();
-                    zoomChanged = true;
-                } else {
-                    console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
-                    scope.enableZoom = false;
-                }
             }
+        }
 
-            function dollyIn(dollyScale) {
-                if (scope.object.isPerspectiveCamera) {
-                    scale *= dollyScale;
-                } else if (scope.object.isOrthographicCamera) {
-                    scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom / dollyScale));
-                    scope.object.updateProjectionMatrix();
-                    zoomChanged = true;
-                } else {
-                    console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
-                    scope.enableZoom = false;
-                }
-            }
+        // 内置OrbitControls定义 - 确保在需要时可用
+        function defineOrbitControls() {
+            if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') {
+                THREE.OrbitControls = function (object, domElement) {
+                    if (domElement === undefined) console.warn('THREE.OrbitControls: The second parameter "domElement" is now mandatory.');
+                    if (domElement === document) console.error('THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.');
 
-            //
-            var handleMouseDownRotate = function (event) {
-                rotateStart.set(event.clientX, event.clientY);
-            };
+                    this.object = object;
+                    this.domElement = domElement;
+                    this.enabled = true;
+                    this.target = new THREE.Vector3();
+                    this.minDistance = 0;
+                    this.maxDistance = Infinity;
+                    this.minZoom = 0;
+                    this.maxZoom = Infinity;
+                    this.minPolarAngle = 0; // radians
+                    this.maxPolarAngle = Math.PI; // radians
+                    this.minAzimuthAngle = -Infinity; // radians
+                    this.maxAzimuthAngle = Infinity; // radians
+                    this.enableDamping = false;
+                    this.dampingFactor = 0.05;
+                    this.enableZoom = true;
+                    this.zoomSpeed = 1.0;
+                    this.enableRotate = true;
+                    this.rotateSpeed = 1.0;
+                    this.enablePan = true;
+                    this.panSpeed = 1.0;
+                    this.screenSpacePanning = true; // if true, pan in screen-space
+                    this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+                    this.autoRotate = false;
+                    this.autoRotateSpeed = 2.0; // 30 seconds per orbit when fps is 60
+                    this.keys = { LEFT: 'ArrowLeft', UP: 'ArrowUp', RIGHT: 'ArrowRight', BOTTOM: 'ArrowDown' };
+                    this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+                    this.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
-            var handleMouseDownDolly = function (event) {
-                dollyStart.set(event.clientX, event.clientY);
-            };
+                    // 定义事件类型常量
+                    var STATE = {
+                        NONE: -1,
+                        ROTATE: 0,
+                        DOLLY: 1,
+                        PAN: 2,
+                        TOUCH_ROTATE: 3,
+                        TOUCH_PAN: 4,
+                        TOUCH_DOLLY_PAN: 5,
+                        TOUCH_DOLLY_ROTATE: 6
+                    };
 
-            var handleMouseDownPan = function (event) {
-                panStart.set(event.clientX, event.clientY);
-            };
+                    var state = STATE.NONE;
 
-            var handleMouseMoveRotate = function (event) {
-                rotateEnd.set(event.clientX, event.clientY);
-                rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+                    // internals
+                    var scope = this;
+                    var EPS = 0.000001;
+                    var spherical = new THREE.Spherical();
+                    var sphericalDelta = new THREE.Spherical();
+                    var scale = 1;
+                    var panOffset = new THREE.Vector3();
+                    var zoomChanged = false;
+                    var rotateStart = new THREE.Vector2();
+                    var rotateEnd = new THREE.Vector2();
+                    var rotateDelta = new THREE.Vector2();
+                    var panStart = new THREE.Vector2();
+                    var panEnd = new THREE.Vector2();
+                    var panDelta = new THREE.Vector2();
+                    var dollyStart = new THREE.Vector2();
+                    var dollyEnd = new THREE.Vector2();
+                    var dollyDelta = new THREE.Vector2();
+                    var pointers = [];
+                    var pointerPositions = {};
 
-                var element = scope.domElement;
+                    // 添加事件调度支持
+                    var startEvent = { type: 'start' };
+                    var endEvent = { type: 'end' };
+                    var changeEvent = { type: 'change' };
 
-                rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
-                rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+                    // 添加缺失的onPointerDown函数
+                    function onPointerDown(event) {
+                        if (scope.enabled === false) return;
 
-                rotateStart.copy(rotateEnd);
-                scope.update();
-            };
+                        switch (event.pointerType) {
+                            case 'mouse':
+                            case 'pen':
+                                onMouseDown(event);
+                                break;
 
-            var handleMouseMoveDolly = function (event) {
-                dollyEnd.set(event.clientX, event.clientY);
-                dollyDelta.subVectors(dollyEnd, dollyStart);
-
-                if (dollyDelta.y > 0) {
-                    dollyOut(getZoomScale());
-                } else if (dollyDelta.y < 0) {
-                    dollyIn(getZoomScale());
-                }
-
-                dollyStart.copy(dollyEnd);
-                scope.update();
-            };
-
-            var handleMouseMovePan = function (event) {
-                panEnd.set(event.clientX, event.clientY);
-                panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
-                pan(panDelta.x, panDelta.y);
-                panStart.copy(panEnd);
-                scope.update();
-            };
-
-            var handleMouseWheel = function (event) {
-                if (event.deltaY < 0) {
-                    dollyIn(getZoomScale());
-                } else if (event.deltaY > 0) {
-                    dollyOut(getZoomScale());
-                }
-                scope.update();
-            };
-
-            var handleKeyDown = function (event) {
-                var needsUpdate = false;
-
-                switch (event.code) {
-                    case scope.keys.UP:
-                        pan(0, scope.keyPanSpeed);
-                        needsUpdate = true;
-                        break;
-                    case scope.keys.BOTTOM:
-                        pan(0, -scope.keyPanSpeed);
-                        needsUpdate = true;
-                        break;
-                    case scope.keys.LEFT:
-                        pan(scope.keyPanSpeed, 0);
-                        needsUpdate = true;
-                        break;
-                    case scope.keys.RIGHT:
-                        pan(-scope.keyPanSpeed, 0);
-                        needsUpdate = true;
-                        break;
-                }
-
-                if (needsUpdate) {
-                    // prevent the browser from scrolling on cursor keys
-                    event.preventDefault();
-                    scope.update();
-                }
-            };
-
-            var handleTouchStartRotate = function () {
-                if (pointers.length == 1) {
-                    rotateStart.set(pointers[0].pageX, pointers[0].pageY);
-                } else {
-                    var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
-                    var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
-
-                    rotateStart.set(x, y);
-                }
-            };
-
-            var handleTouchStartPan = function () {
-                if (pointers.length == 1) {
-                    panStart.set(pointers[0].pageX, pointers[0].pageY);
-                } else {
-                    var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
-                    var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
-
-                    panStart.set(x, y);
-                }
-            };
-
-            var handleTouchStartDolly = function () {
-                var dx = pointers[0].pageX - pointers[1].pageX;
-                var dy = pointers[0].pageY - pointers[1].pageY;
-                var distance = Math.sqrt(dx * dx + dy * dy);
-
-                dollyStart.set(0, distance);
-            };
-
-            var handleTouchStartDollyPan = function () {
-                if (scope.enableZoom) handleTouchStartDolly();
-                if (scope.enablePan) handleTouchStartPan();
-            };
-
-            var handleTouchMoveRotate = function () {
-                if (pointers.length == 1) {
-                    rotateEnd.set(pointers[0].pageX, pointers[0].pageY);
-                } else {
-                    var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
-                    var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
-
-                    rotateEnd.set(x, y);
-                }
-
-                rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
-
-                var element = scope.domElement;
-
-                rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
-                rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
-
-                rotateStart.copy(rotateEnd);
-            };
-
-            var handleTouchMovePan = function () {
-                if (pointers.length == 1) {
-                    panEnd.set(pointers[0].pageX, pointers[0].pageY);
-                } else {
-                    var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
-                    var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
-
-                    panEnd.set(x, y);
-                }
-
-                panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
-                pan(panDelta.x, panDelta.y);
-                panStart.copy(panEnd);
-            };
-
-            var handleTouchMoveDolly = function () {
-                var dx = pointers[0].pageX - pointers[1].pageX;
-                var dy = pointers[0].pageY - pointers[1].pageY;
-                var distance = Math.sqrt(dx * dx + dy * dy);
-
-                dollyEnd.set(0, distance);
-                dollyDelta.set(0, Math.pow(dollyEnd.y / dollyStart.y, scope.zoomSpeed));
-                dollyOut(dollyDelta.y);
-                dollyStart.copy(dollyEnd);
-            };
-
-            var handleTouchMoveDollyPan = function () {
-                if (scope.enableZoom) handleTouchMoveDolly();
-                if (scope.enablePan) handleTouchMovePan();
-            };
-
-            // 添加dispatchEvent方法
-            this.dispatchEvent = function (event) {
-                // 简单的事件调度实现
-                // 在实际场景中可以扩展更多功能
-            };
-
-            // 添加更新方法
-            this.update = function () {
-                var offset = new THREE.Vector3();
-
-                // so camera.up is the orbit axis
-                var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0));
-                var quatInverse = quat.clone().invert();
-
-                var lastPosition = new THREE.Vector3();
-                var lastQuaternion = new THREE.Quaternion();
-
-                return function update(deltaTime) {
-                    var position = scope.object.position;
-
-                    offset.copy(position).sub(scope.target);
-
-                    // rotate offset to "y-axis-is-up" space
-                    offset.applyQuaternion(quat);
-
-                    // angle from z-axis around y-axis
-                    spherical.setFromVector3(offset);
-
-                    if (scope.autoRotate && state === STATE.NONE) {
-                        rotateLeft(getAutoRotationAngle());
+                            // TODO touch
+                        }
                     }
 
-                    if (scope.enableDamping) {
-                        spherical.theta += sphericalDelta.theta * scope.dampingFactor;
-                        spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+                    // 添加缺失的onMouseDown函数
+                    function onMouseDown(event) {
+                        if (scope.enabled === false) return;
 
-                    } else {
-                        spherical.theta += sphericalDelta.theta;
-                        spherical.phi += sphericalDelta.phi;
+                        // Prevent the browser from scrolling.
+                        event.preventDefault();
+
+                        var mouseButton = event.button;
+
+                        // Modifiers are preserved for two reasons:
+                        // 1. When enabled.something = false (see MouseButton enum)
+                        // 2. When the middle mouse button is pressed (see #27211)
+                        var modifier = event.shiftKey ? 'shift' : event.ctrlKey ? 'ctrl' : event.altKey ? 'alt' : 'none';
+
+                        switch (mouseButton) {
+                            case scope.mouseButtons.LEFT:
+                                if (modifier === scope.mouseButtons.LEFT || scope.object.isOrthographicCamera &&
+                                    (scope.mouseButtons.LEFT === THREE.MOUSE.DOLLY || scope.mouseButtons.LEFT === THREE.MOUSE.PAN)) {
+                                    if (scope.enableDolly === false) return;
+                                    handleMouseDownDolly(event);
+                                } else if (modifier === scope.mouseButtons.MIDDLE || modifier === 'shift' ||
+                                    (scope.mouseButtons.LEFT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enablePan === false) return;
+                                    handleMouseDownPan(event);
+                                } else if (modifier === scope.mouseButtons.ROTATE || modifier === 'ctrl' ||
+                                    (scope.mouseButtons.LEFT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableRotate === false) return;
+                                    handleMouseDownRotate(event);
+                                }
+
+                                break;
+
+                            case scope.mouseButtons.MIDDLE:
+                                if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                    (scope.mouseButtons.MIDDLE === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableRotate === false) return;
+                                    handleMouseDownRotate(event);
+                                } else if (modifier === scope.mouseButtons.DOLLY || modifier === 'ctrl' ||
+                                    (scope.mouseButtons.MIDDLE === THREE.MOUSE.DOLLY && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableDolly === false) return;
+                                    handleMouseDownDolly(event);
+                                } else if (modifier === scope.mouseButtons.PAN || modifier === 'alt' ||
+                                    (scope.mouseButtons.MIDDLE === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enablePan === false) return;
+                                    handleMouseDownPan(event);
+                                }
+
+                                break;
+
+                            case scope.mouseButtons.RIGHT:
+                                if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                    (scope.mouseButtons.RIGHT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableRotate === false) return;
+                                    handleMouseDownRotate(event);
+                                } else if (modifier === scope.mouseButtons.PAN || modifier === 'ctrl' ||
+                                    (scope.mouseButtons.RIGHT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enablePan === false) return;
+                                    handleMouseDownPan(event);
+                                }
+
+                                break;
+                        }
+
+                        scope.domElement.ownerDocument.addEventListener('pointermove', onPointerMove);
+                        scope.domElement.ownerDocument.addEventListener('pointerup', onPointerUp);
+
+                        scope.dispatchEvent(startEvent);
                     }
 
-                    // restrict theta to be between desired limits
-                    spherical.theta = Math.max(scope.minAzimuthAngle, Math.min(scope.maxAzimuthAngle, spherical.theta));
+                    // 添加缺失的onPointerMove函数
+                    function onPointerMove(event) {
+                        if (scope.enabled === false) return;
 
-                    // restrict phi to be between desired limits
-                    spherical.phi = Math.max(scope.minPolarAngle, Math.min(scope.maxPolarAngle, spherical.phi));
+                        event.preventDefault();
 
-                    spherical.makeSafe();
+                        switch (event.pointerType) {
+                            case 'mouse':
+                            case 'pen':
+                                onMouseMove(event);
+                                break;
 
-                    spherical.radius *= scale;
-
-                    // restrict radius to be between desired limits
-                    spherical.radius = Math.max(scope.minDistance, Math.min(scope.maxDistance, spherical.radius));
-
-                    // move target to panned location
-
-                    if (scope.enableDamping === true) {
-                        scope.target.addScaledVector(panOffset, scope.dampingFactor);
-
-                    } else {
-                        scope.target.add(panOffset);
+                            // TODO touch
+                        }
                     }
 
-                    offset.setFromSpherical(spherical);
+                    // 添加缺失的onMouseMove函数
+                    function onMouseMove(event) {
+                        if (scope.enabled === false) return;
 
-                    // rotate offset back to "camera-up-vector-is-up" space
-                    offset.applyQuaternion(quatInverse);
+                        var mouseButton = event.button;
 
-                    position.copy(scope.target).add(offset);
+                        // Treat middle mouse button as left when shift is held
+                        if (event.shiftKey && mouseButton === scope.mouseButtons.MIDDLE) {
+                            mouseButton = scope.mouseButtons.LEFT;
+                        }
 
-                    scope.object.lookAt(scope.target);
+                        // Modifiers are preserved for two reasons:
+                        // 1. When enabled.something = false (see MouseButton enum)
+                        // 2. When the middle mouse button is pressed (see #27211)
+                        var modifier = event.shiftKey ? 'shift' : event.ctrlKey ? 'ctrl' : event.altKey ? 'alt' : 'none';
 
-                    if (scope.enableDamping === true) {
-                        sphericalDelta.theta *= (1 - scope.dampingFactor);
-                        sphericalDelta.phi *= (1 - scope.dampingFactor);
+                        switch (mouseButton) {
+                            case scope.mouseButtons.LEFT:
+                                if (modifier === scope.mouseButtons.LEFT || scope.object.isOrthographicCamera &&
+                                    (scope.mouseButtons.LEFT === THREE.MOUSE.DOLLY || scope.mouseButtons.LEFT === THREE.MOUSE.PAN)) {
+                                    if (scope.enableDolly === false) return;
+                                    handleMouseMoveDolly(event);
+                                } else if (modifier === scope.mouseButtons.MIDDLE || modifier === 'shift' ||
+                                    (scope.mouseButtons.LEFT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enablePan === false) return;
+                                    handleMouseMovePan(event);
+                                } else if (modifier === scope.mouseButtons.ROTATE || modifier === 'ctrl' ||
+                                    (scope.mouseButtons.LEFT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableRotate === false) return;
+                                    handleMouseMoveRotate(event);
+                                }
 
-                        panOffset.multiplyScalar(1 - scope.dampingFactor);
+                                break;
 
-                    } else {
-                        sphericalDelta.set(0, 0, 0);
+                            case scope.mouseButtons.MIDDLE:
+                                if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                    (scope.mouseButtons.MIDDLE === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableRotate === false) return;
+                                    handleMouseMoveRotate(event);
+                                } else if (modifier === scope.mouseButtons.DOLLY || modifier === 'ctrl' ||
+                                    (scope.mouseButtons.MIDDLE === THREE.MOUSE.DOLLY && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableDolly === false) return;
+                                    handleMouseMoveDolly(event);
+                                } else if (modifier === scope.mouseButtons.PAN || modifier === 'alt' ||
+                                    (scope.mouseButtons.MIDDLE === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enablePan === false) return;
+                                    handleMouseMovePan(event);
+                                }
 
-                        panOffset.set(0, 0, 0);
+                                break;
 
+                            case scope.mouseButtons.RIGHT:
+                                if (modifier === scope.mouseButtons.ROTATE || modifier === 'shift' ||
+                                    (scope.mouseButtons.RIGHT === THREE.MOUSE.ROTATE && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enableRotate === false) return;
+                                    handleMouseMoveRotate(event);
+                                } else if (modifier === scope.mouseButtons.PAN || modifier === 'ctrl' ||
+                                    (scope.mouseButtons.RIGHT === THREE.MOUSE.PAN && scope.object.isPerspectiveCamera)) {
+                                    if (scope.enablePan === false) return;
+                                    handleMouseMovePan(event);
+                                }
+
+                                break;
+                        }
                     }
 
-                    scale = 1;
+                    // 添加缺失的onPointerUp函数
+                    function onPointerUp(event) {
+                        if (scope.enabled === false) return;
 
-                    // update condition is:
-                    // min(camera displacement, camera rotation in radians)^2 > EPS
-                    // using small-angle approximation cos(x/2) = 1 - x^2 / 8
+                        scope.domElement.ownerDocument.removeEventListener('pointermove', onPointerMove);
+                        scope.domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
 
-                    if (zoomChanged ||
-                        lastPosition.distanceToSquared(scope.object.position) > EPS ||
-                        8 * (1 - lastQuaternion.dot(scope.object.quaternion)) > EPS) {
+                        scope.dispatchEvent(endEvent);
+
+                        state = STATE.NONE;
+                    }
+
+                    function getAutoRotationAngle() {
+                        return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+                    }
+
+                    function getZoomScale() {
+                        return Math.pow(0.95, scope.zoomSpeed);
+                    }
+
+                    function rotateLeft(angle) {
+                        sphericalDelta.theta -= angle;
+                    }
+
+                    function rotateUp(angle) {
+                        sphericalDelta.phi -= angle;
+                    }
+
+                    var panLeft = function () {
+                        var v = new THREE.Vector3();
+                        return function panLeft(distance, objectMatrix) {
+                            v.setFromMatrixColumn(objectMatrix, 0); // get X column of objectMatrix
+                            v.multiplyScalar(-distance);
+                            panOffset.add(v);
+                        };
+                    }();
+
+                    var panUp = function () {
+                        var v = new THREE.Vector3();
+                        return function panUp(distance, objectMatrix) {
+                            if (scope.screenSpacePanning === true) {
+                                v.setFromMatrixColumn(objectMatrix, 1);
+                            } else {
+                                v.setFromMatrixColumn(objectMatrix, 0);
+                                v.crossVectors(scope.object.up, v);
+                            }
+                            v.multiplyScalar(distance);
+                            panOffset.add(v);
+                        };
+                    }();
+
+                    var pan = function () {
+                        var offset = new THREE.Vector3();
+                        return function pan(deltaX, deltaY) {
+                            var element = scope.domElement;
+
+                            if (element && scope.object.isPerspectiveCamera) {
+                                // perspective
+                                var position = scope.object.position;
+                                offset.copy(position).sub(scope.target);
+                                var targetDistance = offset.length();
+
+                                // half of the fov is center to top of screen
+                                targetDistance *= Math.tan((scope.object.fov / 2) * Math.PI / 180.0);
+
+                                // we use only clientHeight here so aspect ratio does not distort speed
+                                panLeft(2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix);
+                                panUp(2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix);
+                            } else if (element && scope.object.isOrthographicCamera) {
+                                // orthographic
+                                panLeft(deltaX * (scope.object.right - scope.object.left) / scope.object.zoom / element.clientWidth, scope.object.matrix);
+                                panUp(deltaY * (scope.object.top - scope.object.bottom) / scope.object.zoom / element.clientHeight, scope.object.matrix);
+                            } else {
+                                // camera neither orthographic nor perspective
+                                console.warn('WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.');
+                                scope.enablePan = false;
+                            }
+                        };
+                    }();
+
+                    function dollyOut(dollyScale) {
+                        if (scope.object.isPerspectiveCamera) {
+                            scale /= dollyScale;
+                        } else if (scope.object.isOrthographicCamera) {
+                            scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * dollyScale));
+                            scope.object.updateProjectionMatrix();
+                            zoomChanged = true;
+                        } else {
+                            console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
+                            scope.enableZoom = false;
+                        }
+                    }
+
+                    function dollyIn(dollyScale) {
+                        if (scope.object.isPerspectiveCamera) {
+                            scale *= dollyScale;
+                        } else if (scope.object.isOrthographicCamera) {
+                            scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom / dollyScale));
+                            scope.object.updateProjectionMatrix();
+                            zoomChanged = true;
+                        } else {
+                            console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
+                            scope.enableZoom = false;
+                        }
+                    }
+
+                    //
+                    var handleMouseDownRotate = function (event) {
+                        rotateStart.set(event.clientX, event.clientY);
+                    };
+
+                    var handleMouseDownDolly = function (event) {
+                        dollyStart.set(event.clientX, event.clientY);
+                    };
+
+                    var handleMouseDownPan = function (event) {
+                        panStart.set(event.clientX, event.clientY);
+                    };
+
+                    var handleMouseMoveRotate = function (event) {
+                        rotateEnd.set(event.clientX, event.clientY);
+                        rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+
+                        var element = scope.domElement;
+
+                        rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
+                        rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+
+                        rotateStart.copy(rotateEnd);
+                        scope.update();
+                    };
+
+                    var handleMouseMoveDolly = function (event) {
+                        dollyEnd.set(event.clientX, event.clientY);
+                        dollyDelta.subVectors(dollyEnd, dollyStart);
+
+                        if (dollyDelta.y > 0) {
+                            dollyOut(getZoomScale());
+                        } else if (dollyDelta.y < 0) {
+                            dollyIn(getZoomScale());
+                        }
+
+                        dollyStart.copy(dollyEnd);
+                        scope.update();
+                    };
+
+                    var handleMouseMovePan = function (event) {
+                        panEnd.set(event.clientX, event.clientY);
+                        panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+                        pan(panDelta.x, panDelta.y);
+                        panStart.copy(panEnd);
+                        scope.update();
+                    };
+
+                    var handleMouseWheel = function (event) {
+                        if (event.deltaY < 0) {
+                            dollyIn(getZoomScale());
+                        } else if (event.deltaY > 0) {
+                            dollyOut(getZoomScale());
+                        }
+                        scope.update();
+                    };
+
+                    var handleKeyDown = function (event) {
+                        var needsUpdate = false;
+
+                        switch (event.code) {
+                            case scope.keys.UP:
+                                pan(0, scope.keyPanSpeed);
+                                needsUpdate = true;
+                                break;
+                            case scope.keys.BOTTOM:
+                                pan(0, -scope.keyPanSpeed);
+                                needsUpdate = true;
+                                break;
+                            case scope.keys.LEFT:
+                                pan(scope.keyPanSpeed, 0);
+                                needsUpdate = true;
+                                break;
+                            case scope.keys.RIGHT:
+                                pan(-scope.keyPanSpeed, 0);
+                                needsUpdate = true;
+                                break;
+                        }
+
+                        if (needsUpdate) {
+                            // prevent the browser from scrolling on cursor keys
+                            event.preventDefault();
+                            scope.update();
+                        }
+                    };
+
+                    var handleTouchStartRotate = function () {
+                        if (pointers.length == 1) {
+                            rotateStart.set(pointers[0].pageX, pointers[0].pageY);
+                        } else {
+                            var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                            var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                            rotateStart.set(x, y);
+                        }
+                    };
+
+                    var handleTouchStartPan = function () {
+                        if (pointers.length == 1) {
+                            panStart.set(pointers[0].pageX, pointers[0].pageY);
+                        } else {
+                            var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                            var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                            panStart.set(x, y);
+                        }
+                    };
+
+                    var handleTouchStartDolly = function () {
+                        var dx = pointers[0].pageX - pointers[1].pageX;
+                        var dy = pointers[0].pageY - pointers[1].pageY;
+                        var distance = Math.sqrt(dx * dx + dy * dy);
+
+                        dollyStart.set(0, distance);
+                    };
+
+                    var handleTouchStartDollyPan = function () {
+                        if (scope.enableZoom) handleTouchStartDolly();
+                        if (scope.enablePan) handleTouchStartPan();
+                    };
+
+                    var handleTouchMoveRotate = function () {
+                        if (pointers.length == 1) {
+                            rotateEnd.set(pointers[0].pageX, pointers[0].pageY);
+                        } else {
+                            var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                            var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                            rotateEnd.set(x, y);
+                        }
+
+                        rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+
+                        var element = scope.domElement;
+
+                        rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
+                        rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+
+                        rotateStart.copy(rotateEnd);
+                    };
+
+                    var handleTouchMovePan = function () {
+                        if (pointers.length == 1) {
+                            panEnd.set(pointers[0].pageX, pointers[0].pageY);
+                        } else {
+                            var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                            var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                            panEnd.set(x, y);
+                        }
+
+                        panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+                        pan(panDelta.x, panDelta.y);
+                        panStart.copy(panEnd);
+                    };
+
+                    var handleTouchMoveDolly = function () {
+                        var dx = pointers[0].pageX - pointers[1].pageX;
+                        var dy = pointers[0].pageY - pointers[1].pageY;
+                        var distance = Math.sqrt(dx * dx + dy * dy);
+
+                        dollyEnd.set(0, distance);
+                        dollyDelta.set(0, Math.pow(dollyEnd.y / dollyStart.y, scope.zoomSpeed));
+                        dollyOut(dollyDelta.y);
+                        dollyStart.copy(dollyEnd);
+                    };
+
+                    var handleTouchMoveDollyPan = function () {
+                        if (scope.enableZoom) handleTouchMoveDolly();
+                        if (scope.enablePan) handleTouchMovePan();
+                    };
+
+                    // 添加dispatchEvent方法
+                    this.dispatchEvent = function (event) {
+                        // 简单的事件调度实现
+                    };
+
+                    // 添加更新方法
+                    this.update = function () {
+                        var offset = new THREE.Vector3();
+
+                        // so camera.up is the orbit axis
+                        var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0));
+                        var quatInverse = quat.clone().invert();
+
+                        var lastPosition = new THREE.Vector3();
+                        var lastQuaternion = new THREE.Quaternion();
+
+                        return function update(deltaTime) {
+                            var position = scope.object.position;
+
+                            offset.copy(position).sub(scope.target);
+
+                            // rotate offset to "y-axis-is-up" space
+                            offset.applyQuaternion(quat);
+
+                            // angle from z-axis around y-axis
+                            spherical.setFromVector3(offset);
+
+                            if (scope.autoRotate && state === STATE.NONE) {
+                                rotateLeft(getAutoRotationAngle());
+                            }
+
+                            if (scope.enableDamping) {
+                                spherical.theta += sphericalDelta.theta * scope.dampingFactor;
+                                spherical.phi += sphericalDelta.phi * scope.dampingFactor;
+
+                            } else {
+                                spherical.theta += sphericalDelta.theta;
+                                spherical.phi += sphericalDelta.phi;
+                            }
+
+                            // restrict theta to be between desired limits
+                            spherical.theta = Math.max(scope.minAzimuthAngle, Math.min(scope.maxAzimuthAngle, spherical.theta));
+
+                            // restrict phi to be between desired limits
+                            spherical.phi = Math.max(scope.minPolarAngle, Math.min(scope.maxPolarAngle, spherical.phi));
+
+                            spherical.makeSafe();
+
+                            spherical.radius *= scale;
+
+                            // restrict radius to be between desired limits
+                            spherical.radius = Math.max(scope.minDistance, Math.min(scope.maxDistance, spherical.radius));
+
+                            // move target to panned location
+
+                            if (scope.enableDamping === true) {
+                                scope.target.addScaledVector(panOffset, scope.dampingFactor);
+
+                            } else {
+                                scope.target.add(panOffset);
+                            }
+
+                            offset.setFromSpherical(spherical);
+
+                            // rotate offset back to "camera-up-vector-is-up" space
+                            offset.applyQuaternion(quatInverse);
+
+                            position.copy(scope.target).add(offset);
+
+                            scope.object.lookAt(scope.target);
+
+                            if (scope.enableDamping === true) {
+                                sphericalDelta.theta *= (1 - scope.dampingFactor);
+                                sphericalDelta.phi *= (1 - scope.dampingFactor);
+
+                                panOffset.multiplyScalar(1 - scope.dampingFactor);
+
+                            } else {
+                                sphericalDelta.set(0, 0, 0);
+
+                                panOffset.set(0, 0, 0);
+
+                            }
+
+                            scale = 1;
+
+                            // update condition is:
+                            // min(camera displacement, camera rotation in radians)^2 > EPS
+                            // using small-angle approximation cos(x/2) = 1 - x^2 / 8
+
+                            if (zoomChanged ||
+                                lastPosition.distanceToSquared(scope.object.position) > EPS ||
+                                8 * (1 - lastQuaternion.dot(scope.object.quaternion)) > EPS) {
+
+                                scope.dispatchEvent(changeEvent);
+
+                                lastPosition.copy(scope.object.position);
+                                lastQuaternion.copy(scope.object.quaternion);
+                                zoomChanged = false;
+
+                                return true;
+
+                            }
+
+                            return false;
+
+                        };
+                    }();
+
+                    // 添加重置方法
+                    this.reset = function () {
+                        scope.target.copy(scope.target0);
+                        scope.object.position.copy(scope.position0);
+                        scope.object.zoom = scope.zoom0;
+                        scope.object.updateProjectionMatrix();
 
                         scope.dispatchEvent(changeEvent);
 
-                        lastPosition.copy(scope.object.position);
-                        lastQuaternion.copy(scope.object.quaternion);
-                        zoomChanged = false;
+                        scope.update();
 
-                        return true;
+                        state = STATE.NONE;
+                    };
 
-                    }
+                    // 添加保存状态方法
+                    this.saveState = function () {
+                        scope.target0.copy(scope.target);
+                        scope.position0.copy(scope.object.position);
+                        scope.zoom0 = scope.object.zoom;
+                    };
 
-                    return false;
+                    // 添加目标点和初始状态属性
+                    this.target0 = this.target.clone();
+                    this.position0 = this.object.position.clone();
+                    this.zoom0 = this.object.zoom;
 
+                    //
+                    scope.domElement.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+
+                    scope.domElement.addEventListener('pointerdown', onPointerDown);
+                    scope.domElement.addEventListener('wheel', handleMouseWheel);
+
+                    scope.domElement.addEventListener('keydown', handleKeyDown);
+
+                    // force an update at start
+                    this.update();
                 };
-            }();
 
-            // 添加重置方法
-            this.reset = function () {
-                scope.target.copy(scope.target0);
-                scope.object.position.copy(scope.position0);
-                scope.object.zoom = scope.zoom0;
-                scope.object.updateProjectionMatrix();
-
-                scope.dispatchEvent(changeEvent);
-
-                scope.update();
-
-                state = STATE.NONE;
-            };
-
-            // 添加保存状态方法
-            this.saveState = function () {
-                scope.target0.copy(scope.target);
-                scope.position0.copy(scope.object.position);
-                scope.zoom0 = scope.object.zoom;
-            };
-
-            // 添加目标点和初始状态属性
-            this.target0 = this.target.clone();
-            this.position0 = this.object.position.clone();
-            this.zoom0 = this.object.zoom;
-
-            //
-            scope.domElement.addEventListener('contextmenu', function (event) { event.preventDefault(); });
-
-            scope.domElement.addEventListener('pointerdown', onPointerDown);
-            scope.domElement.addEventListener('wheel', handleMouseWheel);
-
-            scope.domElement.addEventListener('keydown', handleKeyDown);
-
-            // force an update at start
-            this.update();
-        };
-
-        THREE.MOUSE = { ROTATE: 0, DOLLY: 1, PAN: 2 };
-        THREE.TOUCH = { ROTATE: 0, DOLLY_PAN: 1 };
+                THREE.MOUSE = { ROTATE: 0, DOLLY: 1, PAN: 2 };
+                THREE.TOUCH = { ROTATE: 0, DOLLY_PAN: 1 };
+            }
+        }
     </script>
 
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap"
@@ -1271,6 +2163,7 @@
                 let scene, camera, renderer, controls, twinModel;
                 let waterMesh = null;
                 let isInitialized = false;
+                let modelLoadPromise = null; // 用于跟踪模型加载状态
 
                 function init() {
                     console.log('🚀 3D渲染器初始化开始...');
@@ -1292,7 +2185,7 @@
                         camera.position.set(5, 5, 5);
                         camera.lookAt(0, 0, 0);
 
-                        renderer = new THREE.WebGLRenderer({ antialias: true });
+                        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                         renderer.setSize(webglContainer.clientWidth, webglContainer.clientHeight);
                         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 限制像素比以提高性能
                         renderer.shadowMap.enabled = true;
@@ -1359,7 +2252,7 @@
                         }
 
                         // 键盘事件监听
-                        window.addEventListener('keydown', (e) => {
+                        function onKeyDown(e) {
                             switch (e.key.toLowerCase()) {
                                 case 'r':
                                     if (controls) controls.reset();
@@ -1376,7 +2269,11 @@
                                     showViewerMessage('操作说明：\n左键旋转 | 右键平移 | 滚轮缩放', false);
                                     break;
                             }
-                        });
+                        }
+
+                        // 确保只添加一次事件监听器
+                        window.removeEventListener('keydown', onKeyDown);
+                        window.addEventListener('keydown', onKeyDown);
 
                         console.log('✅ 3D渲染器初始化完成');
                         isInitialized = true;
@@ -1509,9 +2406,11 @@
                     if (!renderer || !camera) return;
 
                     const webglContainer = document.getElementById('webglContainer');
-                    camera.aspect = webglContainer.clientWidth / webglContainer.clientHeight;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(webglContainer.clientWidth, webglContainer.clientHeight);
+                    if (webglContainer) {
+                        camera.aspect = webglContainer.clientWidth / webglContainer.clientHeight;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(webglContainer.clientWidth, webglContainer.clientHeight);
+                    }
                 });
 
                 function getTwinModel() {
@@ -1519,9 +2418,27 @@
                 }
 
                 function loadRealModel(gltfPath) {
+                    // 如果已经有加载任务正在进行，取消它
+                    if (modelLoadPromise) {
+                        console.log('取消之前的模型加载任务');
+                        // 实际上无法取消fetch请求，但我们至少可以避免冲突
+                    }
+
+                    // 检查Three.js组件是否可用
+                    if (typeof THREE.GLTFLoader === 'undefined') {
+                        console.warn('⚠️ GLTFLoader不可用，使用默认几何体');
+                        showViewerMessage('GLTFLoader不可用，使用默认几何体', false);
+                        const statusEl = document.getElementById('loadModelStatus');
+                        if (statusEl) {
+                            statusEl.innerText = '⚠️ 默认模型';
+                            statusEl.style.color = '#FACC15';
+                        }
+                        return Promise.resolve(false);
+                    }
+
                     if (!isInitialized) {
                         console.warn('渲染器未初始化，无法加载模型');
-                        return;
+                        return Promise.resolve(false);
                     }
 
                     console.log('🎯 开始加载 GLB 模型');
@@ -1536,170 +2453,185 @@
                     // 设置跨域选项
                     loader.setCrossOrigin('anonymous');
 
-                    loader.load(
-                        gltfPath,
-                        (gltf) => {
-                            console.log('✅ 模型加载成功！');
+                    // 创建新的Promise来跟踪加载状态
+                    modelLoadPromise = new Promise((resolve, reject) => {
+                        loader.load(
+                            gltfPath,
+                            (gltf) => {
+                                console.log('✅ 模型加载成功！');
 
-                            hideLoadingProgress();
+                                hideLoadingProgress();
 
-                            if (twinModel) {
-                                if (twinModel.geometry) twinModel.geometry.dispose();
-                                if (twinModel.material) {
-                                    const materials = Array.isArray(twinModel.material) ? twinModel.material : [twinModel.material];
-                                    materials.forEach(mat => {
-                                        if (mat && mat.dispose) mat.dispose();
-                                    });
+                                if (twinModel) {
+                                    if (twinModel.geometry) twinModel.geometry.dispose();
+                                    if (twinModel.material) {
+                                        const materials = Array.isArray(twinModel.material) ? twinModel.material : [twinModel.material];
+                                        materials.forEach(mat => {
+                                            if (mat && mat.dispose) mat.dispose();
+                                        });
+                                    }
+                                    scene.remove(twinModel);
                                 }
-                                scene.remove(twinModel);
-                            }
 
-                            if (waterMesh) {
-                                scene.remove(waterMesh);
-                                if (waterMesh.geometry) waterMesh.geometry.dispose();
-                                if (waterMesh.material) waterMesh.material.dispose();
-                                waterMesh = null;
-                            }
-
-                            twinModel = gltf.scene;
-                            scene.add(twinModel);
-
-                            const box = new THREE.Box3().setFromObject(twinModel);
-                            const center = box.getCenter(new THREE.Vector3());
-                            const size = box.getSize(new THREE.Vector3());
-
-                            twinModel.position.sub(center);
-
-                            const maxDim = Math.max(size.x, size.y, size.z);
-                            if (maxDim > 0) {
-                                const scale = 2.0 / maxDim;
-                                twinModel.scale.set(scale, scale, scale);
-                            }
-
-                            twinModel.traverse((node) => {
-                                if (node.isMesh) {
-                                    node.castShadow = true;
-                                    node.receiveShadow = true;
+                                if (waterMesh) {
+                                    scene.remove(waterMesh);
+                                    if (waterMesh.geometry) waterMesh.geometry.dispose();
+                                    if (waterMesh.material) waterMesh.material.dispose();
+                                    waterMesh = null;
                                 }
-                            });
 
-                            const riskElement = document.getElementById('riskValue');
-                            if (riskElement) {
-                                const currentRisk = parseFloat(riskElement.innerText);
-                                if (!isNaN(currentRisk) && currentRisk > 0) {
-                                    RiskMapper.applyRisk(currentRisk);
+                                twinModel = gltf.scene;
+                                scene.add(twinModel);
+
+                                const box = new THREE.Box3().setFromObject(twinModel);
+                                const center = box.getCenter(new THREE.Vector3());
+                                const size = box.getSize(new THREE.Vector3());
+
+                                twinModel.position.sub(center);
+
+                                const maxDim = Math.max(size.x, size.y, size.z);
+                                if (maxDim > 0) {
+                                    const scale = 2.0 / maxDim;
+                                    twinModel.scale.set(scale, scale, scale);
                                 }
-                            }
 
-                            console.log('✨ 模型已自动居中并缩放');
-                            console.log('📏 模型尺寸:', size);
-                            console.log('🎨 缩放比例:', twinModel.scale);
+                                twinModel.traverse((node) => {
+                                    if (node.isMesh) {
+                                        node.castShadow = true;
+                                        node.receiveShadow = true;
+                                    }
+                                });
 
-                            const statusEl = document.getElementById('loadModelStatus');
-                            if (statusEl) {
-                                statusEl.innerText = '✓ 模型已加载';
-                                statusEl.style.color = '#00FF9D';
-                            }
+                                const riskElement = document.getElementById('riskValue');
+                                if (riskElement) {
+                                    const currentRisk = parseFloat(riskElement.innerText);
+                                    if (!isNaN(currentRisk) && currentRisk > 0) {
+                                        RiskMapper.applyRisk(currentRisk);
+                                    }
+                                }
 
-                            showViewerMessage('✓ 彩虹桥模型加载成功', false);
-                        },
-                        (xhr) => {
-                            const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
-                            console.log(`📊 加载进度：${percent}%`);
-                            updateLoadingProgress(percent);
-                        },
-                        (error) => {
-                            console.error('❌ 模型加载失败:', error);
-                            hideLoadingProgress();
+                                console.log('✨ 模型已自动居中并缩放');
+                                console.log('📏 模型尺寸:', size);
+                                console.log('🎨 缩放比例:', twinModel.scale);
 
-                            // 尝试构建完整的URL
-                            const fullUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) + gltfPath;
+                                const statusEl = document.getElementById('loadModelStatus');
+                                if (statusEl) {
+                                    statusEl.innerText = '✓ 模型已加载';
+                                    statusEl.style.color = '#00FF9D';
+                                }
 
-                            console.log('🔄 尝试使用完整URL加载:', fullUrl);
+                                showViewerMessage('✓ 数字孪生模型加载成功', false);
 
-                            loader.load(
-                                fullUrl,
-                                (gltf) => {
-                                    console.log('✅ 使用完整URL加载模型成功！');
+                                resolve(true);
+                            },
+                            (xhr) => {
+                                if (xhr.total > 0) {
+                                    const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                                    console.log(`📊 加载进度：${percent}%`);
+                                    updateLoadingProgress(percent);
+                                } else {
+                                    // 如果无法获取总大小，显示不确定进度
+                                    updateLoadingProgress(0);
+                                }
+                            },
+                            (error) => {
+                                console.error('❌ 模型加载失败:', error);
+                                hideLoadingProgress();
 
-                                    hideLoadingProgress();
+                                // 尝试构建完整的URL
+                                const fullPath = new URL(gltfPath, window.location.href).href;
+                                console.log('🔄 尝试使用完整URL加载:', fullPath);
 
-                                    if (twinModel) {
-                                        if (twinModel.geometry) twinModel.geometry.dispose();
-                                        if (twinModel.material) {
-                                            const materials = Array.isArray(twinModel.material) ? twinModel.material : [twinModel.material];
-                                            materials.forEach(mat => {
-                                                if (mat && mat.dispose) mat.dispose();
-                                            });
+                                loader.load(
+                                    fullPath,
+                                    (gltf) => {
+                                        console.log('✅ 使用完整URL加载模型成功！');
+
+                                        hideLoadingProgress();
+
+                                        if (twinModel) {
+                                            if (twinModel.geometry) twinModel.geometry.dispose();
+                                            if (twinModel.material) {
+                                                const materials = Array.isArray(twinModel.material) ? twinModel.material : [twinModel.material];
+                                                materials.forEach(mat => {
+                                                    if (mat && mat.dispose) mat.dispose();
+                                                });
+                                            }
+                                            scene.remove(twinModel);
                                         }
-                                        scene.remove(twinModel);
-                                    }
 
-                                    if (waterMesh) {
-                                        scene.remove(waterMesh);
-                                        if (waterMesh.geometry) waterMesh.geometry.dispose();
-                                        if (waterMesh.material) waterMesh.material.dispose();
-                                        waterMesh = null;
-                                    }
-
-                                    twinModel = gltf.scene;
-                                    scene.add(twinModel);
-
-                                    const box = new THREE.Box3().setFromObject(twinModel);
-                                    const center = box.getCenter(new THREE.Vector3());
-                                    const size = box.getSize(new THREE.Vector3());
-
-                                    twinModel.position.sub(center);
-
-                                    const maxDim = Math.max(size.x, size.y, size.z);
-                                    if (maxDim > 0) {
-                                        const scale = 2.0 / maxDim;
-                                        twinModel.scale.set(scale, scale, scale);
-                                    }
-
-                                    twinModel.traverse((node) => {
-                                        if (node.isMesh) {
-                                            node.castShadow = true;
-                                            node.receiveShadow = true;
+                                        if (waterMesh) {
+                                            scene.remove(waterMesh);
+                                            if (waterMesh.geometry) waterMesh.geometry.dispose();
+                                            if (waterMesh.material) waterMesh.material.dispose();
+                                            waterMesh = null;
                                         }
-                                    });
 
-                                    const riskElement = document.getElementById('riskValue');
-                                    if (riskElement) {
-                                        const currentRisk = parseFloat(riskElement.innerText);
-                                        if (!isNaN(currentRisk) && currentRisk > 0) {
-                                            RiskMapper.applyRisk(currentRisk);
+                                        twinModel = gltf.scene;
+                                        scene.add(twinModel);
+
+                                        const box = new THREE.Box3().setFromObject(twinModel);
+                                        const center = box.getCenter(new THREE.Vector3());
+                                        const size = box.getSize(new THREE.Vector3());
+
+                                        twinModel.position.sub(center);
+
+                                        const maxDim = Math.max(size.x, size.y, size.z);
+                                        if (maxDim > 0) {
+                                            const scale = 2.0 / maxDim;
+                                            twinModel.scale.set(scale, scale, scale);
                                         }
+
+                                        twinModel.traverse((node) => {
+                                            if (node.isMesh) {
+                                                node.castShadow = true;
+                                                node.receiveShadow = true;
+                                            }
+                                        });
+
+                                        const riskElement = document.getElementById('riskValue');
+                                        if (riskElement) {
+                                            const currentRisk = parseFloat(riskElement.innerText);
+                                            if (!isNaN(currentRisk) && currentRisk > 0) {
+                                                RiskMapper.applyRisk(currentRisk);
+                                            }
+                                        }
+
+                                        console.log('✨ 模型已自动居中并缩放');
+                                        console.log('📏 模型尺寸:', size);
+                                        console.log('🎨 缩放比例:', twinModel.scale);
+
+                                        const statusEl = document.getElementById('loadModelStatus');
+                                        if (statusEl) {
+                                            statusEl.innerText = '✓ 模型已加载';
+                                            statusEl.style.color = '#00FF9D';
+                                        }
+
+                                        showViewerMessage('✓ 数字孪生模型加载成功', false);
+
+                                        resolve(true);
+                                    },
+                                    null, // 不需要进度回调，因为已经在外面处理了
+                                    (finalError) => {
+                                        console.error('❌ 使用完整URL也加载失败:', finalError);
+                                        hideLoadingProgress();
+
+                                        showViewerMessage('⚠️ 模型加载失败，使用默认几何体', false);
+
+                                        const statusEl = document.getElementById('loadModelStatus');
+                                        if (statusEl) {
+                                            statusEl.innerText = '⚠️ 默认模型';
+                                            statusEl.style.color = '#FACC15';
+                                        }
+
+                                        resolve(false);
                                     }
+                                );
+                            }
+                        );
+                    });
 
-                                    console.log('✨ 模型已自动居中并缩放');
-                                    console.log('📏 模型尺寸:', size);
-                                    console.log('🎨 缩放比例:', twinModel.scale);
-
-                                    const statusEl = document.getElementById('loadModelStatus');
-                                    if (statusEl) {
-                                        statusEl.innerText = '✓ 模型已加载';
-                                        statusEl.style.color = '#00FF9D';
-                                    }
-
-                                    showViewerMessage('✓ 彩虹桥模型加载成功', false);
-                                },
-                                null,
-                                (proxyError) => {
-                                    console.error('❌ 使用完整URL也加载失败:', proxyError);
-                                    hideLoadingProgress();
-
-                                    showViewerMessage('⚠️ 模型加载失败，使用默认几何体', false);
-
-                                    const statusEl = document.getElementById('loadModelStatus');
-                                    if (statusEl) {
-                                        statusEl.innerText = '⚠️ 默认模型';
-                                        statusEl.style.color = '#FACC15';
-                                    }
-                                }
-                            );
-                        }
-                    );
+                    return modelLoadPromise;
                 }
 
                 return { init, getTwinModel, loadRealModel, isInitialized: () => isInitialized };
@@ -1721,6 +2653,8 @@
                 if (oldProgress) oldProgress.remove();
 
                 const viewer = document.getElementById('viewer');
+                if (!viewer) return;
+
                 const progressDiv = document.createElement('div');
                 progressDiv.id = 'modelLoadingProgress';
                 progressDiv.style.cssText = `
@@ -1739,7 +2673,7 @@
                 <div style="width: 100%; height: 4px; background: #1E2A36; border-radius: 2px;">
                     <div id="loadingProgressBar" style="width: ${initialPercent}%; height: 100%; background: #00E5FF; transition: width 0.3s;"></div>
                 </div>
-                <div id="loadingProgressText" style="color: #64748B; font-size: 11px; margin-top: 6px;">${initialPercent}%</div>
+                <div id="loadingProgressText" style="color: #64748B; font-size: 11px; margin-top: 6px;">${initialPercent === 0 ? '准备中...' : initialPercent + '%'}</div>
             `;
                 viewer.appendChild(progressDiv);
             }
@@ -1748,7 +2682,7 @@
                 const progressBar = document.getElementById('loadingProgressBar');
                 const progressText = document.getElementById('loadingProgressText');
                 if (progressBar) progressBar.style.width = `${percent}%`;
-                if (progressText) progressText.innerText = `${percent}%`;
+                if (progressText) progressText.innerText = percent === 0 ? '加载中...' : `${percent}%`;
             }
 
             function hideLoadingProgress() {
@@ -1762,6 +2696,8 @@
                 oldMessages.forEach(msg => msg.remove());
 
                 const viewer = document.getElementById('viewer');
+                if (!viewer) return;
+
                 const d = document.createElement('div');
                 d.style.cssText = `
                 position:absolute; top:60px; left:50%; transform:translateX(-50%);
@@ -2183,6 +3119,7 @@
             }
 
             // ----------------------------------------------------------------------------
+            // ----------------------------------------------------------------------------
             // 模块七：数据感知与洪水风险预测接口模块
             // ----------------------------------------------------------------------------
             const PredictionService = (function () {
@@ -2190,53 +3127,122 @@
                     console.log('🔮 开始预测风险');
                     console.log('📊 发送数据:', data);
 
-                    const url = 'https://project-digital-twin.zeabur.app/predict';
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    // 定义多个备用API端点
+                    const apiEndpoints = [
+                        'https://project-digital-twin.zeabur.app/predict',  // 主要API
+                        'https://project-digital-twin-frontend.vercel.app/api/predict', // 备用API 1
+                        'https://digital-twin-flood-prediction.onrender.com/predict' // 备用API 2
+                    ];
 
+                    let lastError;
+                    for (const apiUrl of apiEndpoints) {
+                        try {
+                            console.log(`尝试API端点: ${apiUrl}`);
+
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => {
+                                controller.abort();
+                                console.log('API请求超时');
+                            }, 15000); // 增加到15秒超时
+
+                            const response = await fetch(apiUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'Cache-Control': 'no-cache'
+                                },
+                                body: JSON.stringify(data),
+                                signal: controller.signal,
+                                mode: 'cors', // 明确设置CORS模式
+                                credentials: 'omit' // 不发送cookies
+                            });
+
+                            clearTimeout(timeoutId);
+
+                            if (controller.signal.aborted) {
+                                console.log('请求已被中止（超时）');
+                                continue; // 尝试下一个端点
+                            }
+
+                            if (!response.ok) {
+                                const errorText = await response.text().catch(() => 'Unknown error');
+                                throw new Error(`HTTP ${response.status}: ${errorText}`);
+                            }
+
+                            const result = await response.json();
+
+                            if (result && typeof result === 'object' && 'success' in result && result.success) {
+                                console.log('✅ 预测成功:', result);
+                                return {
+                                    risk: result.risk !== undefined ? result.risk : 0.5,
+                                    risk_level: result.risk_level || '中风险',
+                                    high_risk_probability: result.high_risk_probability !== undefined ? result.high_risk_probability : 0.5,
+                                    probabilities: result.probabilities || {
+                                        low: 0.33,
+                                        medium: 0.33,
+                                        high: 0.34
+                                    }
+                                };
+                            } else {
+                                throw new Error(`API响应格式错误: ${JSON.stringify(result)}`);
+                            }
+                        } catch (error) {
+                            console.warn(`API端点 ${apiUrl} 请求失败:`, error);
+                            lastError = error;
+                            // 继续尝试下一个端点
+                        }
+                    }
+
+                    // 如果所有API端点都失败，使用高级模拟算法
+                    console.error('⚠️ 所有预测服务均不可用，使用高级模拟数据:', lastError);
+                    showViewerMessage('预测服务暂时不可用，使用高级模拟数据', true);
+
+                    // 使用更复杂的模拟算法，基于历史数据趋势
                     try {
-                        const response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(data),
-                            signal: controller.signal
-                        });
-                        clearTimeout(timeoutId);
-
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            throw new Error(`HTTP ${response.status}: ${errorText}`);
-                        }
-                        const result = await response.json();
-
-                        if (result.success) {
-                            console.log('✅ 预测成功:', result);
-                            return {
-                                risk: result.risk,
-                                risk_level: result.risk_level,
-                                high_risk_probability: result.high_risk_probability,
-                                probabilities: result.probabilities
-                            };
-                        } else {
-                            throw new Error(`API Error: ${result.error || 'Unknown error'}`);
-                        }
-                    } catch (error) {
-                        clearTimeout(timeoutId);
-                        console.error('预测请求失败:', error);
-                        showViewerMessage('预测服务暂时不可用，使用模拟数据', true);
-
-                        // 模拟数据生成逻辑
                         const avgWaterLevel = data.historical_data.reduce((sum, item) => sum + item.water_level, 0) / data.historical_data.length;
                         const avgPrecipitation = data.historical_data.reduce((sum, item) => sum + item.precipitation, 0) / data.historical_data.length;
+                        const avgTemperature = data.historical_data.reduce((sum, item) => sum + item.temperature, 0) / data.historical_data.length;
+                        const avgHumidity = data.historical_data.reduce((sum, item) => sum + item.humidity, 0) / data.historical_data.length;
 
-                        // 基于水位和降水量计算风险
-                        let simulatedRisk = (avgWaterLevel / 100 + avgPrecipitation / 50) / 2;
-                        simulatedRisk = Math.min(1, Math.max(0, simulatedRisk)); // 限制在0-1范围内
+                        // 计算最近的趋势（最近3天相对于前3天的变化）
+                        const recentData = data.historical_data.slice(-3);
+                        const earlierData = data.historical_data.slice(-6, -3);
 
-                        // 计算概率分布
-                        const highProb = simulatedRisk;
-                        const mediumProb = (1 - simulatedRisk) * 0.5;
-                        const lowProb = (1 - simulatedRisk) * 0.5;
+                        const recentAvgWater = recentData.reduce((sum, item) => sum + item.water_level, 0) / recentData.length;
+                        const earlierAvgWater = earlierData.length > 0 ? earlierData.reduce((sum, item) => sum + item.water_level, 0) / earlierData.length : avgWaterLevel;
+
+                        const waterTrend = earlierAvgWater > 0 ? (recentAvgWater - earlierAvgWater) / earlierAvgWater : 0;
+
+                        // 综合考虑各项指标计算风险
+                        let baseRisk = (
+                            (avgWaterLevel / 100) * 0.4 +      // 水位权重40%
+                            (avgPrecipitation / 50) * 0.3 +     // 降水权重30%
+                            (avgHumidity / 100) * 0.2 +         // 湿度权重20%
+                            (avgTemperature > 30 ? 0.1 : 0)     // 高温权重10%
+                        ) / 1.0;
+
+                        // 根据趋势调整风险值
+                        let simulatedRisk = Math.min(1, Math.max(0, baseRisk + waterTrend * 0.3));
+
+                        // 计算概率分布，基于风险水平
+                        let lowProb, mediumProb, highProb;
+                        if (simulatedRisk < 0.3) {
+                            // 低风险情况
+                            lowProb = 0.8;
+                            mediumProb = 0.15;
+                            highProb = 0.05;
+                        } else if (simulatedRisk < 0.7) {
+                            // 中风险情况
+                            lowProb = 0.3;
+                            mediumProb = 0.5;
+                            highProb = 0.2;
+                        } else {
+                            // 高风险情况
+                            lowProb = 0.1;
+                            mediumProb = 0.3;
+                            highProb = 0.6;
+                        }
 
                         const result = {
                             risk: simulatedRisk,
@@ -2249,8 +3255,21 @@
                             }
                         };
 
-                        console.log('🧪 模拟数据结果:', result);
+                        console.log('🧪 高级模拟数据结果:', result);
                         return result;
+                    } catch (e) {
+                        console.error('模拟数据计算出错:', e);
+                        // 最终兜底方案
+                        return {
+                            risk: 0.5,
+                            risk_level: '中风险',
+                            high_risk_probability: 0.33,
+                            probabilities: {
+                                low: 0.33,
+                                medium: 0.34,
+                                high: 0.33
+                            }
+                        };
                     }
                 }
 
@@ -2301,32 +3320,13 @@
                     console.error("预测失败", e);
                     showViewerMessage('预测过程中出现错误', true);
                 } finally {
-                    btn.innerHTML = originalHTML;
-                    btn.disabled = false;
+                    // 确保按钮状态被恢复
+                    if (btn && btn.innerHTML !== originalHTML) {
+                        btn.innerHTML = originalHTML;
+                        btn.disabled = false;
+                    }
                 }
             };
-
-            // ----------------------------------------------------------------------------
-            // 折叠/展开部分
-            // ----------------------------------------------------------------------------
-            function toggleSection(sectionId) {
-                const section = document.getElementById(sectionId);
-                if (!section) return;
-
-                const header = section.previousElementSibling;
-
-                if (section.classList.contains('hidden')) {
-                    section.classList.remove('hidden');
-                    if (header && header.parentElement) {
-                        header.parentElement.classList.remove('collapsed');
-                    }
-                } else {
-                    section.classList.add('hidden');
-                    if (header && header.parentElement) {
-                        header.parentElement.classList.add('collapsed');
-                    }
-                }
-            }
 
             // ----------------------------------------------------------------------------
             // GitHub Pages 专用模型加载函数
@@ -2342,8 +3342,42 @@
                     }
                 }
 
-                // 尝试加载模型
-                TwinRenderer.loadRealModel('my_digital_twin_model.glb');
+                // 尝试多种可能的模型文件路径，适用于GitHub Pages
+                const modelPaths = [
+                    './my_digital_twin_model.glb',           // 当前目录
+                    './assets/my_digital_twin_model.glb',    // assets目录
+                    './models/my_digital_twin_model.glb',    // models目录
+                    './3d/my_digital_twin_model.glb',        // 3d目录
+                    'my_digital_twin_model.glb'             // 相对于根目录
+                ];
+
+                let attempt = 0;
+                const tryNextPath = () => {
+                    if (attempt >= modelPaths.length) {
+                        console.warn('所有模型路径都尝试失败');
+                        showViewerMessage('模型文件未找到，请确认模型已正确部署', true);
+                        return;
+                    }
+
+                    const currentPath = modelPaths[attempt++];
+                    console.log(`尝试模型路径: ${currentPath}`);
+
+                    TwinRenderer.loadRealModel(currentPath)
+                        .then(success => {
+                            if (!success) {
+                                console.log(`路径 "${currentPath}" 加载失败，尝试下一个...`);
+                                tryNextPath(); // 尝试下一个路径
+                            } else {
+                                console.log(`模型成功加载: ${currentPath}`);
+                            }
+                        })
+                        .catch(err => {
+                            console.error(`路径 "${currentPath}" 加载出错:`, err);
+                            tryNextPath(); // 出错则尝试下一个路径
+                        });
+                };
+
+                tryNextPath();
             }
 
             // ----------------------------------------------------------------------------
@@ -2359,15 +3393,32 @@
                     if (initSuccess) {
                         console.log('✅ 3D渲染器初始化完成');
 
-                        // 尝试加载模型
-                        const modelPath = 'my_digital_twin_model.glb';
-                        console.log('🔍 检查模型文件:', modelPath);
+                        // 尝试加载模型 - 使用多种可能的路径
+                        const modelPaths = [
+                            './my_digital_twin_model.glb',           // 当前目录
+                            './assets/my_digital_twin_model.glb',    // assets目录
+                            './models/my_digital_twin_model.glb',    // models目录
+                            './3d/my_digital_twin_model.glb'         // 3d目录
+                        ];
 
-                        try {
-                            console.log('✅ 尝试加载模型...');
-                            TwinRenderer.loadRealModel(modelPath);
-                        } catch (error) {
-                            console.warn('⚠️ 模型加载失败，使用默认几何体:', error);
+                        let modelLoaded = false;
+                        for (const modelPath of modelPaths) {
+                            try {
+                                console.log('🔍 尝试模型文件:', modelPath);
+                                const success = await TwinRenderer.loadRealModel(modelPath);
+                                if (success) {
+                                    modelLoaded = true;
+                                    console.log('✅ 模型加载成功:', modelPath);
+                                    break;
+                                }
+                            } catch (err) {
+                                console.warn(`模型路径 "${modelPath}" 加载失败:`, err);
+                                continue;
+                            }
+                        }
+
+                        if (!modelLoaded) {
+                            console.warn('⚠️ 所有模型路径都失败，使用默认几何体');
                             const modelLoadStatus = document.getElementById('modelLoadStatus');
                             const loadModelStatus = document.getElementById('loadModelStatus');
 
@@ -2408,19 +3459,73 @@
             })();
 
             // 控制台手动加载模型接口
-            window.loadRealTwinModel = (path) => {
+            window.loadRealTwinModel = async (path) => {
                 if (!TwinRenderer.isInitialized()) {
                     if (!TwinRenderer.init()) {
                         console.error('渲染器初始化失败');
                         return;
                     }
                 }
-                TwinRenderer.loadRealModel(path);
+                return await TwinRenderer.loadRealModel(path);
             };
 
             // 暴露历史数据管理器到全局作用域
             window.HistoryDataManager = HistoryDataManager;
         </script>
+    <script>
+        // 确保在Three.js库加载后再执行相关代码
+        if (typeof THREE !== 'undefined') {
+            console.log('✅ Three.js 核心库已加载');
+
+            // 等待所有扩展加载完成后再初始化系统
+            function waitForThreeExtensions() {
+                return new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        if (typeof THREE.GLTFLoader !== 'undefined' && typeof THREE.OrbitControls !== 'undefined') {
+                            clearInterval(checkInterval);
+                            console.log('✅ Three.js 扩展已加载');
+                            resolve();
+                        }
+                    }, 100);
+
+                    // 设置最大等待时间（5秒）
+                    setTimeout(() => {
+                        clearInterval(checkInterval);
+                        console.warn('⚠️ Three.js 扩展加载超时，使用内置版本');
+                        // 确保内置版本已定义
+                        if (typeof THREE.GLTFLoader === 'undefined') {
+                            defineGLTFLoader();
+                        }
+                        if (typeof THREE.OrbitControls === 'undefined') {
+                            defineOrbitControls();
+                        }
+                        resolve();
+                    }, 5000);
+                });
+            }
+
+            // 在DOM完全加载后初始化系统
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', async function () {
+                    await waitForThreeExtensions();
+                    // 启动系统初始化
+                    initSystem();
+                });
+            } else {
+                // DOM已加载，直接初始化
+                document.addEventListener('DOMContentLoaded', async function () {
+                    await waitForThreeExtensions();
+                    // 启动系统初始化
+                    initSystem();
+                });
+            }
+        } else {
+            console.error('❌ Three.js 未加载，系统无法启动');
+            window.addEventListener('DOMContentLoaded', function () {
+                showViewerMessage('Three.js 未正确加载，请检查网络连接', true);
+            });
+        }
+    </script>
     
     </body>
     
