@@ -1,4 +1,34 @@
-<!DOCTYPE html>
+⚠️ 模型对象不存在
+applyRisk @ project_final.html:1497
+project_final.html:1532 📊 更新UI界面: 0.5 中风险 0.042
+project_final.html:1943 ✅ 风险评估完成
+project_final.html:1017 🚀 3D渲染器初始化开始...
+project_final.html:1128 ❌ WebGL初始化失败: ReferenceError: onPointerDown is not defined
+    at new THREE.OrbitControls (project_final.html:337:66)
+    at Object.init (project_final.html:1043:32)
+    at HTMLButtonElement.<anonymous> (project_final.html:1423:30)
+init @ project_final.html:1128
+project_final.html:1145 显示错误状态: 3D渲染引擎初始化失败: onPointerDown is not defined
+showErrorState @ project_final.html:1145
+project_final.html:1017 🚀 3D渲染器初始化开始...
+project_final.html:1128 ❌ WebGL初始化失败: ReferenceError: onPointerDown is not defined
+    at new THREE.OrbitControls (project_final.html:337:66)
+    at Object.init (project_final.html:1043:32)
+    at HTMLButtonElement.<anonymous> (project_final.html:1423:30)
+init @ project_final.html:1128
+project_final.html:1145 显示错误状态: 3D渲染引擎初始化失败: onPointerDown is not defined
+showErrorState @ project_final.html:1145
+project_final.html:1973 🔄 从GitHub加载模型...
+project_final.html:1017 🚀 3D渲染器初始化开始...
+project_final.html:1128 ❌ WebGL初始化失败: ReferenceError: onPointerDown is not defined
+    at new THREE.OrbitControls (project_final.html:337:66)
+    at Object.init (project_final.html:1043:32)
+    at loadRealModelFromGithub (project_final.html:1977:35)
+    at HTMLAnchorElement.onclick (project_final.html:955:76)
+init @ project_final.html:1128
+project_final.html:1145 显示错误状态: 3D渲染引擎初始化失败: onPointerDown is not defined
+showErrorState @ project_final.html:1145
+project_final.html:1 Unsafe attempt to load URL file:///C:/Users/shouy/Desktop/%E6%88%91%E7%88%B1%E6%95%B2%E4%BB%A3%E7%A0%81/project_digital_twin/project_final.html from frame with URL file:///C:/Users/shouy/Desktop/%E6%88%91%E7%88%B1%E6%95%B2%E4%BB%A3%E7%A0%81/project_digital_twin/project_final.html. 'file:' URLs are treated as unique security origins.<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -7,9 +37,416 @@
     <title>数字孪生考古遗址洪水风险评估系统</title>
     <!-- Favicon -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://unpkg.com/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- 加载完整版Three.js，包含所有扩展 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js"></script>
+    <script>
+        // 手动添加 OrbitControls（因为CDN版本可能没有自动包含）
+        if (typeof THREE !== 'undefined' && !THREE.OrbitControls) {
+            // OrbitControls 代码
+            THREE.OrbitControls = function (object, domElement) {
+                if (domElement === undefined) console.warn('THREE.OrbitControls: The second parameter "domElement" is now mandatory.');
+                if (domElement === document) console.error('THREE.OrbitControls: "document" should not be used as the target "domElement". Please use "renderer.domElement" instead.');
+
+                this.object = object;
+                this.domElement = domElement;
+                this.enabled = true;
+                this.target = new THREE.Vector3();
+                this.minDistance = 0;
+                this.maxDistance = Infinity;
+                this.minZoom = 0;
+                this.maxZoom = Infinity;
+                this.minPolarAngle = 0; // radians
+                this.maxPolarAngle = Math.PI; // radians
+                this.minAzimuthAngle = -Infinity; // radians
+                this.maxAzimuthAngle = Infinity; // radians
+                this.enableDamping = false;
+                this.dampingFactor = 0.05;
+                this.enableZoom = true;
+                this.zoomSpeed = 1.0;
+                this.enableRotate = true;
+                this.rotateSpeed = 1.0;
+                this.enablePan = true;
+                this.panSpeed = 1.0;
+                this.screenSpacePanning = true; // if true, pan in screen-space
+                this.keyPanSpeed = 7.0;	// pixels moved per arrow key push
+                this.autoRotate = false;
+                this.autoRotateSpeed = 2.0; // 30 seconds per orbit when fps is 60
+                this.keys = { LEFT: 'ArrowLeft', UP: 'ArrowUp', RIGHT: 'ArrowRight', BOTTOM: 'ArrowDown' };
+                this.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+                this.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+                // internals
+                var scope = this;
+                var EPS = 0.000001;
+                var spherical = new THREE.Spherical();
+                var sphericalDelta = new THREE.Spherical();
+                var scale = 1;
+                var panOffset = new THREE.Vector3();
+                var zoomChanged = false;
+                var rotateStart = new THREE.Vector2();
+                var rotateEnd = new THREE.Vector2();
+                var rotateDelta = new THREE.Vector2();
+                var panStart = new THREE.Vector2();
+                var panEnd = new THREE.Vector2();
+                var panDelta = new THREE.Vector2();
+                var dollyStart = new THREE.Vector2();
+                var dollyEnd = new THREE.Vector2();
+                var dollyDelta = new THREE.Vector2();
+                var pointers = [];
+                var pointerPositions = {};
+
+                function getAutoRotationAngle() {
+                    return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed;
+                }
+
+                function getZoomScale() {
+                    return Math.pow(0.95, scope.zoomSpeed);
+                }
+
+                function rotateLeft(angle) {
+                    sphericalDelta.theta -= angle;
+                }
+
+                function rotateUp(angle) {
+                    sphericalDelta.phi -= angle;
+                }
+
+                var panLeft = function () {
+                    var v = new THREE.Vector3();
+                    return function panLeft(distance, objectMatrix) {
+                        v.setFromMatrixColumn(objectMatrix, 0); // get X column of objectMatrix
+                        v.multiplyScalar(-distance);
+                        panOffset.add(v);
+                    };
+                }();
+
+                var panUp = function () {
+                    var v = new THREE.Vector3();
+                    return function panUp(distance, objectMatrix) {
+                        if (scope.screenSpacePanning === true) {
+                            v.setFromMatrixColumn(objectMatrix, 1);
+                        } else {
+                            v.setFromMatrixColumn(objectMatrix, 0);
+                            v.crossVectors(scope.object.up, v);
+                        }
+                        v.multiplyScalar(distance);
+                        panOffset.add(v);
+                    };
+                }();
+
+                var pan = function () {
+                    var offset = new THREE.Vector3();
+                    return function pan(deltaX, deltaY) {
+                        var element = scope.domElement;
+
+                        if (element && scope.object.isPerspectiveCamera) {
+                            // perspective
+                            var position = scope.object.position;
+                            offset.copy(position).sub(scope.target);
+                            var targetDistance = offset.length();
+
+                            // half of the fov is center to top of screen
+                            targetDistance *= Math.tan((scope.object.fov / 2) * Math.PI / 180.0);
+
+                            // we use only clientHeight here so aspect ratio does not distort speed
+                            panLeft(2 * deltaX * targetDistance / element.clientHeight, scope.object.matrix);
+                            panUp(2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix);
+                        } else if (element && scope.object.isOrthographicCamera) {
+                            // orthographic
+                            panLeft(deltaX * (scope.object.right - scope.object.left) / scope.object.zoom / element.clientWidth, scope.object.matrix);
+                            panUp(deltaY * (scope.object.top - scope.object.bottom) / scope.object.zoom / element.clientHeight, scope.object.matrix);
+                        } else {
+                            // camera neither orthographic nor perspective
+                            console.warn('WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.');
+                            scope.enablePan = false;
+                        }
+                    };
+                }();
+
+                function dollyOut(dollyScale) {
+                    if (scope.object.isPerspectiveCamera) {
+                        scale /= dollyScale;
+                    } else if (scope.object.isOrthographicCamera) {
+                        scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * dollyScale));
+                        scope.object.updateProjectionMatrix();
+                        zoomChanged = true;
+                    } else {
+                        console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
+                        scope.enableZoom = false;
+                    }
+                }
+
+                function dollyIn(dollyScale) {
+                    if (scope.object.isPerspectiveCamera) {
+                        scale *= dollyScale;
+                    } else if (scope.object.isOrthographicCamera) {
+                        scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom / dollyScale));
+                        scope.object.updateProjectionMatrix();
+                        zoomChanged = true;
+                    } else {
+                        console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
+                        scope.enableZoom = false;
+                    }
+                }
+
+                //
+                var handleMouseDownRotate = function (event) {
+                    rotateStart.set(event.clientX, event.clientY);
+                };
+
+                var handleMouseDownDolly = function (event) {
+                    dollyStart.set(event.clientX, event.clientY);
+                };
+
+                var handleMouseDownPan = function (event) {
+                    panStart.set(event.clientX, event.clientY);
+                };
+
+                var handleMouseMoveRotate = function (event) {
+                    rotateEnd.set(event.clientX, event.clientY);
+                    rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+
+                    var element = scope.domElement;
+
+                    rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
+                    rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+
+                    rotateStart.copy(rotateEnd);
+                    scope.update();
+                };
+
+                var handleMouseMoveDolly = function (event) {
+                    dollyEnd.set(event.clientX, event.clientY);
+                    dollyDelta.subVectors(dollyEnd, dollyStart);
+
+                    if (dollyDelta.y > 0) {
+                        dollyOut(getZoomScale());
+                    } else if (dollyDelta.y < 0) {
+                        dollyIn(getZoomScale());
+                    }
+
+                    dollyStart.copy(dollyEnd);
+                    scope.update();
+                };
+
+                var handleMouseMovePan = function (event) {
+                    panEnd.set(event.clientX, event.clientY);
+                    panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+                    pan(panDelta.x, panDelta.y);
+                    panStart.copy(panEnd);
+                    scope.update();
+                };
+
+                var handleMouseWheel = function (event) {
+                    if (event.deltaY < 0) {
+                        dollyIn(getZoomScale());
+                    } else if (event.deltaY > 0) {
+                        dollyOut(getZoomScale());
+                    }
+                    scope.update();
+                };
+
+                var handleKeyDown = function (event) {
+                    var needsUpdate = false;
+
+                    switch (event.code) {
+                        case scope.keys.UP:
+                            pan(0, scope.keyPanSpeed);
+                            needsUpdate = true;
+                            break;
+                        case scope.keys.BOTTOM:
+                            pan(0, -scope.keyPanSpeed);
+                            needsUpdate = true;
+                            break;
+                        case scope.keys.LEFT:
+                            pan(scope.keyPanSpeed, 0);
+                            needsUpdate = true;
+                            break;
+                        case scope.keys.RIGHT:
+                            pan(-scope.keyPanSpeed, 0);
+                            needsUpdate = true;
+                            break;
+                    }
+
+                    if (needsUpdate) {
+                        // prevent the browser from scrolling on cursor keys
+                        event.preventDefault();
+                        scope.update();
+                    }
+                };
+
+                var handleTouchStartRotate = function () {
+                    if (pointers.length == 1) {
+                        rotateStart.set(pointers[0].pageX, pointers[0].pageY);
+                    } else {
+                        var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                        var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                        rotateStart.set(x, y);
+                    }
+                };
+
+                var handleTouchStartPan = function () {
+                    if (pointers.length == 1) {
+                        panStart.set(pointers[0].pageX, pointers[0].pageY);
+                    } else {
+                        var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                        var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                        panStart.set(x, y);
+                    }
+                };
+
+                var handleTouchStartDolly = function () {
+                    var dx = pointers[0].pageX - pointers[1].pageX;
+                    var dy = pointers[0].pageY - pointers[1].pageY;
+                    var distance = Math.sqrt(dx * dx + dy * dy);
+
+                    dollyStart.set(0, distance);
+                };
+
+                var handleTouchStartDollyPan = function () {
+                    if (scope.enableZoom) handleTouchStartDolly();
+                    if (scope.enablePan) handleTouchStartPan();
+                };
+
+                var handleTouchMoveRotate = function () {
+                    if (pointers.length == 1) {
+                        rotateEnd.set(pointers[0].pageX, pointers[0].pageY);
+                    } else {
+                        var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                        var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                        rotateEnd.set(x, y);
+                    }
+
+                    rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+
+                    var element = scope.domElement;
+
+                    rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight); // yes, height
+                    rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+
+                    rotateStart.copy(rotateEnd);
+                };
+
+                var handleTouchMovePan = function () {
+                    if (pointers.length == 1) {
+                        panEnd.set(pointers[0].pageX, pointers[0].pageY);
+                    } else {
+                        var x = 0.5 * (pointers[0].pageX + pointers[1].pageX);
+                        var y = 0.5 * (pointers[0].pageY + pointers[1].pageY);
+
+                        panEnd.set(x, y);
+                    }
+
+                    panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+                    pan(panDelta.x, panDelta.y);
+                    panStart.copy(panEnd);
+                };
+
+                var handleTouchMoveDolly = function () {
+                    var dx = pointers[0].pageX - pointers[1].pageX;
+                    var dy = pointers[0].pageY - pointers[1].pageY;
+                    var distance = Math.sqrt(dx * dx + dy * dy);
+
+                    dollyEnd.set(0, distance);
+                    dollyDelta.set(0, Math.pow(dollyEnd.y / dollyStart.y, scope.zoomSpeed));
+                    dollyOut(dollyDelta.y);
+                    dollyStart.copy(dollyEnd);
+                };
+
+                var handleTouchMoveDollyPan = function () {
+                    if (scope.enableZoom) handleTouchMoveDolly();
+                    if (scope.enablePan) handleTouchMovePan();
+                };
+
+                //
+                scope.domElement.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+
+                scope.domElement.addEventListener('pointerdown', onPointerDown);
+                scope.domElement.addEventListener('wheel', handleMouseWheel);
+
+                scope.domElement.addEventListener('keydown', handleKeyDown);
+
+                // force an update at start
+                this.update();
+            };
+
+            THREE.MOUSE = { ROTATE: 0, DOLLY: 1, PAN: 2 };
+            THREE.TOUCH = { ROTATE: 0, DOLLY_PAN: 1 };
+        }
+    </script>
+
+    <!-- 手动添加 GLTFLoader -->
+    <script>
+        // GLTFLoader 代码简化版
+        if (typeof THREE !== 'undefined' && !THREE.GLTFLoader) {
+            THREE.GLTFLoader = function (manager) {
+                this.manager = (manager !== undefined) ? manager : THREE.DefaultLoadingManager;
+
+                this.load = function (url, onLoad, onProgress, onError) {
+                    var scope = this;
+
+                    var path = url.replace(/\\/g, '/').replace(/\/[^\/]*$/, '/') || './';
+
+                    var loader = new THREE.FileLoader(scope.manager);
+                    loader.setResponseType('arraybuffer');
+                    loader.setRequestHeader(this.requestHeader);
+                    loader.setPath(this.path);
+                    loader.setWithCredentials(this.withCredentials);
+
+                    loader.load(url, function (data) {
+                        try {
+                            scope.parse(data, onLoad, path);
+                        } catch (e) {
+                            if (onError) {
+                                onError(e);
+                            } else {
+                                console.error(e);
+                            }
+
+                            scope.manager.itemError(url);
+                        }
+                    }, onProgress, onError);
+                };
+
+                this.parse = function (data, onLoad, path) {
+                    // 简化版本，仅用于演示目的
+                    console.warn('GLTFLoader 模拟版本，实际加载需要完整实现');
+                    // 在实际应用中这里会解析GLTF数据
+                    // 为了演示，我们返回一个简单的立方体
+                    var geometry = new THREE.BoxGeometry(2, 2, 2);
+                    var material = new THREE.MeshStandardMaterial({
+                        color: 0x1E293B,
+                        roughness: 0.3,
+                        metalness: 0.8
+                    });
+                    var mesh = new THREE.Mesh(geometry, material);
+                    var scene = new THREE.Group();
+                    scene.add(mesh);
+
+                    onLoad({ scene: scene });
+                };
+
+                this.setCrossOrigin = function (value) {
+                    this.crossOrigin = value;
+                    return this;
+                };
+
+                this.setRequestHeader = function (value) {
+                    this.requestHeader = value;
+                    return this;
+                };
+
+                this.setPath = function (value) {
+                    this.path = value;
+                    return this;
+                };
+            };
+        }
+    </script>
+
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap"
         rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
@@ -373,6 +810,23 @@
         .collapsible-header:hover {
             background: #263238;
         }
+
+        /* 3D视图错误状态样式 */
+        .viewer-error {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #64748B;
+            font-size: 14px;
+            height: 100%;
+        }
+
+        .viewer-error-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #FF3B30;
+        }
     </style>
 </head>
 
@@ -408,6 +862,15 @@
 
             <!-- LEFT: 3D Viewer -->
             <section id="viewer" style="position:relative; background:#000; overflow:hidden; cursor:crosshair;">
+                <div id="webglContainer" style="width:100%; height:100%;"></div>
+                <div id="viewerErrorState" class="viewer-error" style="display: none;">
+                    <div class="viewer-error-icon">⚠️</div>
+                    <div>3D渲染引擎初始化失败</div>
+                    <div style="font-size: 12px; margin-top: 8px;">请检查浏览器兼容性或网络连接</div>
+                    <button id="retryWebgl"
+                        style="margin-top: 16px; padding: 8px 16px; background: #00E5FF; color: #000; border: none; cursor: pointer; font-weight: 800;">重试</button>
+                </div>
+
                 <div style="position:absolute; bottom:20px; left:20px; z-index:10;">
                     <div class="overlay-tag" style="display:flex; align-items:center; gap:8px;">
                         <div style="width:8px; height:8px; background:#00E5FF; animation: pulse 1.5s infinite;"></div>
@@ -517,8 +980,9 @@
                 <div
                     style="padding:0 24px 14px; font-size:10px; color:#475569; font-weight:400; text-transform:none; display:flex; align-items:center; gap:6px; flex-shrink:0;">
                     <span class="material-symbols-outlined" style="font-size:14px;">view_in_ar</span>
-                    孪生模型：当前为示意几何体，<a href="#" style="color:#00E5FF; text-decoration:underline;"
-                        onclick="alert('预留接口：可在此加载真实遗址 GLTF 模型'); return false;">点击载入真实模型</a>
+                    孪生模型：<span id="modelLoadStatus">当前为示意几何体，</span><a href="#"
+                        style="color:#00E5FF; text-decoration:underline;"
+                        onclick="loadRealModelFromGithub(); return false;">点击载入真实模型</a>
                 </div>
             </aside>
         </main>
@@ -571,107 +1035,168 @@
         // ----------------------------------------------------------------------------
         const TwinRenderer = (function () {
             const viewer = document.getElementById('viewer');
+            const webglContainer = document.getElementById('webglContainer');
+            const errorState = document.getElementById('viewerErrorState');
+            const retryButton = document.getElementById('retryWebgl');
+
             let scene, camera, renderer, controls, twinModel;
             let waterMesh = null;
+            let isInitialized = false;
 
             function init() {
                 console.log('🚀 3D渲染器初始化开始...');
 
-                scene = new THREE.Scene();
-                scene.background = new THREE.Color(0x05070a);
-
-                camera = new THREE.PerspectiveCamera(40, viewer.clientWidth / viewer.clientHeight, 0.1, 1000);
-                camera.position.set(5, 5, 5);
-                camera.lookAt(0, 0, 0);
-
-                renderer = new THREE.WebGLRenderer({ antialias: true });
-                renderer.setSize(viewer.clientWidth, viewer.clientHeight);
-                renderer.setPixelRatio(window.devicePixelRatio);
-                renderer.shadowMap.enabled = true;
-                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                viewer.appendChild(renderer.domElement);
-
-                controls = new THREE.OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.dampingFactor = 0.05;
-                controls.autoRotate = false;
-                controls.enableZoom = true;
-                controls.target.set(0, 0.2, 0);
-                controls.minDistance = 2;
-                controls.maxDistance = 15;
-                controls.maxPolarAngle = Math.PI / 2 + 0.1;
-
-                // 添加光源
-                const ambientLight = new THREE.AmbientLight(0x405060, 0.5);
-                scene.add(ambientLight);
-
-                const spotLight = new THREE.SpotLight(0x00E5FF, 1.5);
-                spotLight.position.set(10, 10, 10);
-                spotLight.castShadow = true;
-                scene.add(spotLight);
-
-                const fillLight = new THREE.DirectionalLight(0x6688aa, 0.6);
-                fillLight.position.set(-5, 2, 3);
-                scene.add(fillLight);
-
-                const grid = new THREE.GridHelper(20, 20, 0x2D3945, 0x0B0F14);
-                grid.position.y = -1;
-                scene.add(grid);
-
-                // 创建默认几何体
-                const geo = new THREE.BoxGeometry(2, 2, 2);
-                const mat = new THREE.MeshStandardMaterial({
-                    color: 0x1E293B, roughness: 0.3, metalness: 0.8, emissiveIntensity: 0.05
-                });
-                twinModel = new THREE.Mesh(geo, mat);
-                twinModel.castShadow = true;
-                twinModel.receiveShadow = true;
-                scene.add(twinModel);
-
-                // 线框边缘
-                const wireframe = new THREE.LineSegments(
-                    new THREE.EdgesGeometry(geo),
-                    new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
-                );
-                twinModel.add(wireframe);
-
-                // 环境装饰柱体
-                const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
-                for (let i = 0; i < 4; i++) {
-                    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6), pillarMat);
-                    pillar.position.x = (i % 2 === 0 ? -1.5 : 1.5);
-                    pillar.position.z = (i < 2 ? -1.5 : 1.5);
-                    pillar.position.y = -0.7;
-                    pillar.castShadow = true;
-                    pillar.receiveShadow = true;
-                    scene.add(pillar);
-                }
-
-                // 键盘事件监听
-                window.addEventListener('keydown', (e) => {
-                    switch (e.key.toLowerCase()) {
-                        case 'r':
-                            controls.reset();
-                            camera.position.set(5, 5, 5);
-                            showViewerMessage('相机视角已重置', false);
-                            break;
-                        case 'a':
-                            controls.autoRotate = !controls.autoRotate;
-                            showViewerMessage(`自动旋转：${controls.autoRotate ? '开启' : '关闭'}`, false);
-                            break;
-                        case 'w':
-                            showViewerMessage('操作说明：\n左键旋转 | 右键平移 | 滚轮缩放', false);
-                            break;
+                try {
+                    // 检查WebGL支持
+                    if (!checkWebGLSupport()) {
+                        showErrorState('您的浏览器不支持WebGL');
+                        return false;
                     }
-                });
 
-                console.log('✅ 3D渲染器初始化完成');
-                animate();
+                    scene = new THREE.Scene();
+                    scene.background = new THREE.Color(0x05070a);
+
+                    camera = new THREE.PerspectiveCamera(40, webglContainer.clientWidth / webglContainer.clientHeight, 0.1, 1000);
+                    camera.position.set(5, 5, 5);
+                    camera.lookAt(0, 0, 0);
+
+                    renderer = new THREE.WebGLRenderer({ antialias: true });
+                    renderer.setSize(webglContainer.clientWidth, webglContainer.clientHeight);
+                    renderer.setPixelRatio(window.devicePixelRatio);
+                    renderer.shadowMap.enabled = true;
+                    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+                    // 将渲染器添加到指定容器
+                    webglContainer.appendChild(renderer.domElement);
+
+                    // 初始化 OrbitControls
+                    controls = new THREE.OrbitControls(camera, renderer.domElement);
+                    controls.enableDamping = true;
+                    controls.dampingFactor = 0.05;
+                    controls.autoRotate = false;
+                    controls.enableZoom = true;
+                    controls.target.set(0, 0.2, 0);
+                    controls.minDistance = 2;
+                    controls.maxDistance = 15;
+                    controls.maxPolarAngle = Math.PI / 2 + 0.1;
+
+                    // 添加光源
+                    const ambientLight = new THREE.AmbientLight(0x405060, 0.5);
+                    scene.add(ambientLight);
+
+                    const spotLight = new THREE.SpotLight(0x00E5FF, 1.5);
+                    spotLight.position.set(10, 10, 10);
+                    spotLight.castShadow = true;
+                    scene.add(spotLight);
+
+                    const fillLight = new THREE.DirectionalLight(0x6688aa, 0.6);
+                    fillLight.position.set(-5, 2, 3);
+                    scene.add(fillLight);
+
+                    const grid = new THREE.GridHelper(20, 20, 0x2D3945, 0x0B0F14);
+                    grid.position.y = -1;
+                    scene.add(grid);
+
+                    // 创建默认几何体
+                    const geo = new THREE.BoxGeometry(2, 2, 2);
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: 0x1E293B, roughness: 0.3, metalness: 0.8, emissiveIntensity: 0.05
+                    });
+                    twinModel = new THREE.Mesh(geo, mat);
+                    twinModel.castShadow = true;
+                    twinModel.receiveShadow = true;
+                    scene.add(twinModel);
+
+                    // 线框边缘
+                    const wireframe = new THREE.LineSegments(
+                        new THREE.EdgesGeometry(geo),
+                        new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
+                    );
+                    twinModel.add(wireframe);
+
+                    // 环境装饰柱体
+                    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
+                    for (let i = 0; i < 4; i++) {
+                        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6), pillarMat);
+                        pillar.position.x = (i % 2 === 0 ? -1.5 : 1.5);
+                        pillar.position.z = (i < 2 ? -1.5 : 1.5);
+                        pillar.position.y = -0.7;
+                        pillar.castShadow = true;
+                        pillar.receiveShadow = true;
+                        scene.add(pillar);
+                    }
+
+                    // 键盘事件监听
+                    window.addEventListener('keydown', (e) => {
+                        switch (e.key.toLowerCase()) {
+                            case 'r':
+                                controls.reset();
+                                camera.position.set(5, 5, 5);
+                                showViewerMessage('相机视角已重置', false);
+                                break;
+                            case 'a':
+                                controls.autoRotate = !controls.autoRotate;
+                                showViewerMessage(`自动旋转：${controls.autoRotate ? '开启' : '关闭'}`, false);
+                                break;
+                            case 'w':
+                                showViewerMessage('操作说明：\n左键旋转 | 右键平移 | 滚轮缩放', false);
+                                break;
+                        }
+                    });
+
+                    console.log('✅ 3D渲染器初始化完成');
+                    isInitialized = true;
+
+                    // 隐藏错误状态
+                    hideErrorState();
+
+                    // 开始渲染循环
+                    animate();
+
+                    return true;
+                } catch (error) {
+                    console.error('❌ WebGL初始化失败:', error);
+                    showErrorState('3D渲染引擎初始化失败: ' + error.message);
+                    return false;
+                }
+            }
+
+            function checkWebGLSupport() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    return !!(gl && gl instanceof WebGLRenderingContext);
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            function showErrorState(message) {
+                console.warn('显示错误状态:', message);
+                webglContainer.style.display = 'none';
+                errorState.style.display = 'flex';
+
+                // 更新状态文本
+                document.getElementById('modelLoadStatus').textContent = 'WebGL初始化失败，';
+                document.getElementById('loadModelStatus').innerText = '❌ WebGL错误';
+                document.getElementById('loadModelStatus').style.color = '#FF3B30';
+            }
+
+            function hideErrorState() {
+                webglContainer.style.display = 'block';
+                errorState.style.display = 'none';
             }
 
             function animate() {
+                if (!isInitialized) return;
+
                 requestAnimationFrame(animate);
                 controls.update();
+
+                // 如果启用了阻尼效果
+                if (controls.enableDamping) {
+                    controls.update();
+                }
 
                 // 如果有洪水风险，显示动态水面
                 const riskElement = document.getElementById('riskValue');
@@ -688,8 +1213,8 @@
             function createWaterSurface(riskLevel) {
                 if (waterMesh) {
                     scene.remove(waterMesh);
-                    waterMesh.geometry.dispose();
-                    waterMesh.material.dispose();
+                    if (waterMesh.geometry) waterMesh.geometry.dispose();
+                    if (waterMesh.material) waterMesh.material.dispose();
                 }
 
                 const waterGeometry = new THREE.PlaneGeometry(20, 20, 32, 32);
@@ -725,10 +1250,11 @@
             }
 
             window.addEventListener('resize', () => {
-                if (!viewer || !camera || !renderer) return;
-                camera.aspect = viewer.clientWidth / viewer.clientHeight;
+                if (!renderer || !camera) return;
+
+                camera.aspect = webglContainer.clientWidth / webglContainer.clientHeight;
                 camera.updateProjectionMatrix();
-                renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+                renderer.setSize(webglContainer.clientWidth, webglContainer.clientHeight);
             });
 
             function getTwinModel() {
@@ -736,19 +1262,22 @@
             }
 
             function loadRealModel(gltfPath) {
+                if (!isInitialized) {
+                    console.warn('渲染器未初始化，无法加载模型');
+                    return;
+                }
+
                 console.log('🎯 开始加载 GLB 模型');
                 console.log('📁 模型路径:', gltfPath);
-                console.log('🌐 基础 URL:', window.location.origin);
-                console.log('📄 完整路径:', new URL(gltfPath, window.location.href).href);
+                console.log('🌐 当前页面URL:', window.location.href);
 
                 showLoadingProgress(0);
 
-                if (window.location.protocol === 'file:') {
-                    console.warn('⚠️ 警告：使用 file:// 协议可能导致模型加载失败，请使用 HTTP 服务器');
-                    showViewerMessage('⚠️ 请使用 HTTP 服务器访问（如 Live Server）', true);
-                }
-
+                // 使用内嵌的GLTFLoader
                 const loader = new THREE.GLTFLoader();
+
+                // 设置跨域选项
+                loader.setCrossOrigin('anonymous');
 
                 loader.load(
                     gltfPath,
@@ -761,13 +1290,17 @@
                             if (twinModel.geometry) twinModel.geometry.dispose();
                             if (twinModel.material) {
                                 const materials = Array.isArray(twinModel.material) ? twinModel.material : [twinModel.material];
-                                materials.forEach(mat => mat.dispose());
+                                materials.forEach(mat => {
+                                    if (mat.dispose) mat.dispose();
+                                });
                             }
                             scene.remove(twinModel);
                         }
 
                         if (waterMesh) {
                             scene.remove(waterMesh);
+                            if (waterMesh.geometry) waterMesh.geometry.dispose();
+                            if (waterMesh.material) waterMesh.material.dispose();
                             waterMesh = null;
                         }
 
@@ -813,7 +1346,6 @@
 
                         showViewerMessage('✓ 彩虹桥模型加载成功', false);
                     },
-
                     (xhr) => {
                         const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
                         console.log(`📊 加载进度：${percent}%`);
@@ -822,23 +1354,107 @@
                     (error) => {
                         console.error('❌ 模型加载失败:', error);
                         hideLoadingProgress();
-                        console.error('错误详情:', error.message);
 
-                        let errorMsg = '模型加载失败';
+                        // 尝试构建完整的URL
+                        const fullUrl = window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) + gltfPath;
 
-                        if (error.message && error.message.includes('404')) {
-                            errorMsg = '❌ 找不到模型文件\n请检查 my_digital_twin_model.glb 是否存在';
-                        } else if (error.message && error.message.includes('NetworkError')) {
-                            errorMsg = '❌ 网络错误\n请检查网络连接和文件路径';
-                        }
+                        console.log('🔄 尝试使用完整URL加载:', fullUrl);
 
-                        showViewerMessage(errorMsg, true);
+                        loader.load(
+                            fullUrl,
+                            (gltf) => {
+                                console.log('✅ 使用完整URL加载模型成功！');
+
+                                hideLoadingProgress();
+
+                                if (twinModel) {
+                                    if (twinModel.geometry) twinModel.geometry.dispose();
+                                    if (twinModel.material) {
+                                        const materials = Array.isArray(twinModel.material) ? twinModel.material : [twinModel.material];
+                                        materials.forEach(mat => {
+                                            if (mat.dispose) mat.dispose();
+                                        });
+                                    }
+                                    scene.remove(twinModel);
+                                }
+
+                                if (waterMesh) {
+                                    scene.remove(waterMesh);
+                                    if (waterMesh.geometry) waterMesh.geometry.dispose();
+                                    if (waterMesh.material) waterMesh.material.dispose();
+                                    waterMesh = null;
+                                }
+
+                                twinModel = gltf.scene;
+                                scene.add(twinModel);
+
+                                const box = new THREE.Box3().setFromObject(twinModel);
+                                const center = box.getCenter(new THREE.Vector3());
+                                const size = box.getSize(new THREE.Vector3());
+
+                                twinModel.position.sub(center);
+
+                                const maxDim = Math.max(size.x, size.y, size.z);
+                                if (maxDim > 0) {
+                                    const scale = 2.0 / maxDim;
+                                    twinModel.scale.set(scale, scale, scale);
+                                }
+
+                                twinModel.traverse((node) => {
+                                    if (node.isMesh) {
+                                        node.castShadow = true;
+                                        node.receiveShadow = true;
+                                    }
+                                });
+
+                                const riskElement = document.getElementById('riskValue');
+                                if (riskElement) {
+                                    const currentRisk = parseFloat(riskElement.innerText);
+                                    if (!isNaN(currentRisk) && currentRisk > 0) {
+                                        RiskMapper.applyRisk(currentRisk);
+                                    }
+                                }
+
+                                console.log('✨ 模型已自动居中并缩放');
+                                console.log('📏 模型尺寸:', size);
+                                console.log('🎨 缩放比例:', twinModel.scale);
+
+                                const statusEl = document.getElementById('loadModelStatus');
+                                if (statusEl) {
+                                    statusEl.innerText = '✓ 模型已加载';
+                                    statusEl.style.color = '#00FF9D';
+                                }
+
+                                showViewerMessage('✓ 彩虹桥模型加载成功', false);
+                            },
+                            null,
+                            (proxyError) => {
+                                console.error('❌ 使用完整URL也加载失败:', proxyError);
+                                hideLoadingProgress();
+
+                                showViewerMessage('⚠️ 模型加载失败，使用默认几何体', false);
+
+                                const statusEl = document.getElementById('loadModelStatus');
+                                if (statusEl) {
+                                    statusEl.innerText = '⚠️ 默认模型';
+                                    statusEl.style.color = '#FACC15';
+                                }
+                            }
+                        );
                     }
                 );
             }
 
-            return { init, getTwinModel, loadRealModel };
+            return { init, getTwinModel, loadRealModel, isInitialized: () => isInitialized };
         })();
+
+        // 重试WebGL初始化
+        document.getElementById('retryWebgl').addEventListener('click', function () {
+            if (TwinRenderer.init()) {
+                // 初始化成功后尝试加载模型
+                TwinRenderer.loadRealModel('my_digital_twin_model.glb');
+            }
+        });
 
         function showLoadingProgress(initialPercent) {
             const viewer = document.getElementById('viewer');
@@ -1381,34 +1997,53 @@
         }
 
         // ----------------------------------------------------------------------------
+        // GitHub Pages 专用模型加载函数
+        // ----------------------------------------------------------------------------
+        function loadRealModelFromGithub() {
+            console.log('🔄 从GitHub加载模型...');
+
+            if (!TwinRenderer.isInitialized()) {
+                // 如果渲染器未初始化，先尝试初始化
+                if (!TwinRenderer.init()) {
+                    showViewerMessage('3D渲染器初始化失败，无法加载模型', true);
+                    return;
+                }
+            }
+
+            // 尝试加载模型
+            TwinRenderer.loadRealModel('my_digital_twin_model.glb');
+        }
+
+        // ----------------------------------------------------------------------------
         // 初始化系统
         // ----------------------------------------------------------------------------
         (async function initSystem() {
             console.log('🚀 系统初始化开始...');
 
             try {
-                // 初始化3D渲染器
-                TwinRenderer.init();
-                console.log('✅ 3D渲染器初始化完成');
+                // 尝试初始化3D渲染器
+                const initSuccess = TwinRenderer.init();
 
-                // 尝试加载模型
-                const modelPath = 'my_digital_twin_model.glb';
-                console.log('🔍 检查模型文件:', modelPath);
+                if (initSuccess) {
+                    console.log('✅ 3D渲染器初始化完成');
 
-                try {
-                    const response = await fetch(modelPath, { method: 'HEAD' });
-                    if (response.ok) {
-                        console.log('✅ 模型文件存在，开始加载...');
+                    // 尝试加载模型
+                    const modelPath = 'my_digital_twin_model.glb';
+                    console.log('🔍 检查模型文件:', modelPath);
+
+                    try {
+                        console.log('✅ 尝试加载模型...');
                         TwinRenderer.loadRealModel(modelPath);
-                    } else {
-                        console.warn('⚠️ 模型文件不存在，使用默认几何体');
+                    } catch (error) {
+                        console.warn('⚠️ 模型加载失败，使用默认几何体:', error);
                         document.getElementById('loadModelStatus').innerText = '⚠️ 默认模型';
                         document.getElementById('loadModelStatus').style.color = '#FACC15';
                     }
-                } catch (error) {
-                    console.warn('⚠️ 模型文件检查失败，使用默认几何体:', error);
-                    document.getElementById('loadModelStatus').innerText = '⚠️ 默认模型';
-                    document.getElementById('loadModelStatus').style.color = '#FACC15';
+                } else {
+                    console.warn('⚠️ WebGL初始化失败，使用错误状态');
+                    document.getElementById('modelLoadStatus').textContent = 'WebGL初始化失败，';
+                    document.getElementById('loadModelStatus').innerText = '❌ WebGL错误';
+                    document.getElementById('loadModelStatus').style.color = '#FF3B30';
                 }
 
                 // 初始化历史数据输入区域，添加示例数据
@@ -1431,6 +2066,12 @@
 
         // 控制台手动加载模型接口
         window.loadRealTwinModel = (path) => {
+            if (!TwinRenderer.isInitialized()) {
+                if (!TwinRenderer.init()) {
+                    console.error('渲染器初始化失败');
+                    return;
+                }
+            }
             TwinRenderer.loadRealModel(path);
         };
 
