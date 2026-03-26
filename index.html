@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>数字孪生考古遗址洪水风险评估系统</title>
+    <!-- Favicon -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
     <script src="https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
@@ -433,10 +434,10 @@
                                 <p style="margin-bottom: 12px; color: #00E5FF; font-size: 14px;">上传历史数据文件</p>
                                 <input type="file" id="csvFile" accept=".csv" style="display: none;"
                                     onchange="handleFileUpload(this.files[0])">
-                                <label for="csvFile" class="file-upload-label">选择CSV文件</label>
-                                <p class="file-info">支持格式: CSV文件<br>
-                                    列标题: date,water_level,precipitation,temperature,humidity<br>
-                                    示例: <span class="sample-data-link" onclick="downloadSampleCSV()">下载示例文件</span>
+                                <label for="csvFile" class="file-upload-label">选择 CSV 文件</label>
+                                <p class="file-info">支持格式：CSV 文件<br>
+                                    列标题：date,water_level,precipitation,temperature,humidity<br>
+                                    示例：<span class="sample-data-link" onclick="downloadSampleCSV()">下载示例文件</span>
                                 </p>
                                 <div id="fileInfo" style="margin-top: 8px; font-size: 12px; color: #00FF9D;"></div>
                             </div>
@@ -451,13 +452,13 @@
                             </button>
 
                             <button class="upload-btn" id="uploadHistoryBtn" style="width:100%; margin-bottom:8px;"
-                                onclick="triggerCSVUpload()">
+                                onclick="document.getElementById('csvFile').click()">
                                 <span class="material-symbols-outlined" style="font-size:16px;">upload</span>
-                                批量导入历史数据
+                                批量导入历史数据（CSV）
                             </button>
 
                             <div style="margin-top:16px; font-size:12px; color:#64748B;">
-                                <p>注意：需要至少14天的历史数据</p>
+                                <p>注意：需要至少 14 天的历史数据</p>
                                 <p>数据格式：日期、水位、降水量、温度、湿度</p>
                             </div>
                         </div>
@@ -500,9 +501,9 @@
                             </div>
 
                             <div class="probability-display">
-                                <div class="prob-item prob-low">低风险: <span id="probLow">0%</span></div>
-                                <div class="prob-item prob-medium">中风险: <span id="probMedium">0%</span></div>
-                                <div class="prob-item prob-high">高风险: <span id="probHigh">0%</span></div>
+                                <div class="prob-item prob-low">低风险：<span id="probLow">0%</span></div>
+                                <div class="prob-item prob-medium">中风险：<span id="probMedium">0%</span></div>
+                                <div class="prob-item prob-high">高风险：<span id="probHigh">0%</span></div>
                             </div>
                         </div>
                     </div>
@@ -513,7 +514,7 @@
                     style="padding:0 24px 14px; font-size:10px; color:#475569; font-weight:400; text-transform:none; display:flex; align-items:center; gap:6px; flex-shrink:0;">
                     <span class="material-symbols-outlined" style="font-size:14px;">view_in_ar</span>
                     孪生模型：当前为示意几何体，<a href="#" style="color:#00E5FF; text-decoration:underline;"
-                        onclick="alert('预留接口：可在此加载真实遗址GLTF模型'); return false;">点击载入真实模型</a>
+                        onclick="alert('预留接口：可在此加载真实遗址 GLTF 模型'); return false;">点击载入真实模型</a>
                 </div>
             </aside>
         </main>
@@ -566,6 +567,7 @@
         const TwinRenderer = (function () {
             const viewer = document.getElementById('viewer');
             let scene, camera, renderer, controls, twinModel;
+            let waterMesh = null;
 
             function init() {
                 scene = new THREE.Scene();
@@ -588,6 +590,9 @@
                 controls.autoRotate = false;
                 controls.enableZoom = true;
                 controls.target.set(0, 0.2, 0);
+                controls.minDistance = 2;
+                controls.maxDistance = 15;
+                controls.maxPolarAngle = Math.PI / 2 + 0.1;
 
                 const ambientLight = new THREE.AmbientLight(0x405060, 0.5);
                 scene.add(ambientLight);
@@ -605,7 +610,6 @@
                 grid.position.y = -1;
                 scene.add(grid);
 
-                // 数字孪生占位模型
                 const geo = new THREE.BoxGeometry(2, 2, 2);
                 const mat = new THREE.MeshStandardMaterial({
                     color: 0x1E293B, roughness: 0.3, metalness: 0.8, emissiveIntensity: 0.05
@@ -615,14 +619,12 @@
                 twinModel.receiveShadow = true;
                 scene.add(twinModel);
 
-                // 线框边缘
                 const wireframe = new THREE.LineSegments(
                     new THREE.EdgesGeometry(geo),
                     new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
                 );
                 twinModel.add(wireframe);
 
-                // 环境装饰柱体
                 const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
                 for (let i = 0; i < 4; i++) {
                     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6), pillarMat);
@@ -634,6 +636,23 @@
                     scene.add(pillar);
                 }
 
+                window.addEventListener('keydown', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case 'r':
+                            controls.reset();
+                            camera.position.set(5, 5, 5);
+                            showViewerMessage('相机视角已重置', false);
+                            break;
+                        case 'a':
+                            controls.autoRotate = !controls.autoRotate;
+                            showViewerMessage(`自动旋转：${controls.autoRotate ? '开启' : '关闭'}`, false);
+                            break;
+                        case 'w':
+                            showViewerMessage('操作说明：\n左键旋转 | 右键平移 | 滚轮缩放', false);
+                            break;
+                    }
+                });
+
                 animate();
             }
 
@@ -641,6 +660,45 @@
                 requestAnimationFrame(animate);
                 controls.update();
                 renderer.render(scene, camera);
+            }
+
+            function createWaterSurface(riskLevel) {
+                if (waterMesh) {
+                    scene.remove(waterMesh);
+                    waterMesh.geometry.dispose();
+                    waterMesh.material.dispose();
+                }
+
+                const waterGeometry = new THREE.PlaneGeometry(20, 20, 32, 32);
+                const waterMaterial = new THREE.MeshStandardMaterial({
+                    color: riskLevel > 0.7 ? 0xef4444 : 0xfacc15,
+                    transparent: true,
+                    opacity: 0.6,
+                    roughness: 0.1,
+                    metalness: 0.8,
+                    side: THREE.DoubleSide
+                });
+
+                waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
+                waterMesh.rotation.x = -Math.PI / 2;
+                waterMesh.position.y = -1 + (riskLevel - 0.5) * 2;
+                scene.add(waterMesh);
+            }
+
+            function animateWaterSurface(riskLevel) {
+                if (!waterMesh) {
+                    createWaterSurface(riskLevel);
+                    return;
+                }
+
+                const time = Date.now() * 0.001;
+                const positions = waterMesh.geometry.attributes.position;
+                for (let i = 0; i < positions.count; i++) {
+                    const x = positions.getX(i);
+                    const y = positions.getY(i);
+                    positions.setZ(i, Math.sin(x * 2 + time) * 0.1 + Math.cos(y * 1.5 + time) * 0.1);
+                }
+                positions.needsUpdate = true;
             }
 
             window.addEventListener('resize', () => {
@@ -652,14 +710,14 @@
 
             function getTwinModel() { return twinModel; }
 
-            // GLTF 真实模型加载
             function loadRealModel(gltfPath) {
                 console.log('🎯 开始加载 GLB 模型');
                 console.log('📁 模型路径:', gltfPath);
                 console.log('🌐 基础 URL:', window.location.origin);
                 console.log('📄 完整路径:', new URL(gltfPath, window.location.href).href);
 
-                // 检查协议
+                showLoadingProgress(0);
+
                 if (window.location.protocol === 'file:') {
                     console.warn('⚠️ 警告：使用 file:// 协议可能导致模型加载失败，请使用 HTTP 服务器');
                     showViewerMessage('⚠️ 请使用 HTTP 服务器访问（如 Live Server）', true);
@@ -672,31 +730,37 @@
                     (gltf) => {
                         console.log('✅ 模型加载成功！');
 
-                        // 移除旧的占位模型
+                        hideLoadingProgress();
+
                         if (twinModel) {
+                            if (twinModel.geometry) twinModel.geometry.dispose();
+                            if (twinModel.material) {
+                                const materials = Array.isArray(twinModel.material) ? twinModel.material : [twinModel.material];
+                                materials.forEach(mat => mat.dispose());
+                            }
                             scene.remove(twinModel);
                         }
 
-                        // 添加新模型
+                        if (waterMesh) {
+                            scene.remove(waterMesh);
+                            waterMesh = null;
+                        }
+
                         twinModel = gltf.scene;
                         scene.add(twinModel);
 
-                        // 自动计算边界并居中
                         const box = new THREE.Box3().setFromObject(twinModel);
                         const center = box.getCenter(new THREE.Vector3());
                         const size = box.getSize(new THREE.Vector3());
 
-                        // 居中模型
                         twinModel.position.sub(center);
 
-                        // 自动缩放以适应场景
                         const maxDim = Math.max(size.x, size.y, size.z);
                         if (maxDim > 0) {
                             const scale = 2.0 / maxDim;
                             twinModel.scale.set(scale, scale, scale);
                         }
 
-                        // 设置阴影
                         twinModel.traverse((node) => {
                             if (node.isMesh) {
                                 node.castShadow = true;
@@ -704,7 +768,6 @@
                             }
                         });
 
-                        // 应用当前风险状态（如果有）
                         const riskElement = document.getElementById('riskValue');
                         if (riskElement) {
                             const currentRisk = parseFloat(riskElement.innerText);
@@ -717,7 +780,6 @@
                         console.log('📏 模型尺寸:', size);
                         console.log('🎨 缩放比例:', twinModel.scale);
 
-                        // 更新加载状态
                         const statusEl = document.getElementById('loadModelStatus');
                         if (statusEl) {
                             statusEl.innerText = '✓ 模型已加载';
@@ -728,12 +790,13 @@
                     },
 
                     (xhr) => {
-                        // 加载进度
                         const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
                         console.log(`📊 加载进度：${percent}%`);
+                        updateLoadingProgress(percent);
                     },
                     (error) => {
                         console.error('❌ 模型加载失败:', error);
+                        hideLoadingProgress();
                         console.error('错误详情:', error.message);
 
                         let errorMsg = '模型加载失败';
@@ -752,18 +815,55 @@
             return { init, getTwinModel, loadRealModel };
         })();
 
-        // 在 viewer 上显示临时消息
+        function showLoadingProgress(initialPercent) {
+            const viewer = document.getElementById('viewer');
+            const progressDiv = document.createElement('div');
+            progressDiv.id = 'modelLoadingProgress';
+            progressDiv.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 300px;
+                text-align: center;
+                z-index: 100;
+            `;
+            progressDiv.innerHTML = `
+                <div style="color: #00E5FF; font-size: 14px; margin-bottom: 10px; font-weight: 800;">
+                    正在加载数字孪生模型...
+                </div>
+                <div style="width: 100%; height: 4px; background: #1E2A36; border-radius: 2px;">
+                    <div id="loadingProgressBar" style="width: ${initialPercent}%; height: 100%; background: #00E5FF; transition: width 0.3s;"></div>
+                </div>
+                <div id="loadingProgressText" style="color: #64748B; font-size: 11px; margin-top: 6px;">${initialPercent}%</div>
+            `;
+            const viewer = document.getElementById('viewer');
+            viewer.appendChild(progressDiv);
+        }
+
+        function updateLoadingProgress(percent) {
+            const progressBar = document.getElementById('loadingProgressBar');
+            const progressText = document.getElementById('loadingProgressText');
+            if (progressBar) progressBar.style.width = `${percent}%`;
+            if (progressText) progressText.innerText = `${percent}%`;
+        }
+
+        function hideLoadingProgress() {
+            const progressDiv = document.getElementById('modelLoadingProgress');
+            if (progressDiv) progressDiv.remove();
+        }
+
         function showViewerMessage(text, isError = true) {
             const viewer = document.getElementById('viewer');
             const d = document.createElement('div');
             d.style.cssText = `
-        position:absolute; top:60px; left:50%; transform:translateX(-50%);
-        background:${isError ? '#FF3B30' : '#00FF9D'}; color:${isError ? 'white' : 'black'};
-        padding:8px 16px; font-size:12px; font-weight:800; z-index:100;
-        border:2px solid ${isError ? '#FF3B30' : '#00FF9D'};
-        box-shadow:0 0 15px ${isError ? 'rgba(255,59,48,0.4)' : 'rgba(0,255,157,0.4)'};
-        font-family:'JetBrains Mono',monospace; text-transform:uppercase;
-    `;
+                position:absolute; top:60px; left:50%; transform:translateX(-50%);
+                background:${isError ? '#FF3B30' : '#00FF9D'}; color:${isError ? 'white' : 'black'};
+                padding:8px 16px; font-size:12px; font-weight:800; z-index:100;
+                border:2px solid ${isError ? '#FF3B30' : '#00FF9D'};
+                box-shadow:0 0 15px ${isError ? 'rgba(255,59,48,0.4)' : 'rgba(0,255,157,0.4)'};
+                font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+            `;
             d.innerText = text;
             viewer.appendChild(d);
             setTimeout(() => d.remove(), 3000);
@@ -817,7 +917,6 @@
                 document.getElementById('highRiskProb').innerText = (highProb * 100).toFixed(1) + '%';
                 document.getElementById('riskProgress').style.width = (risk * 100) + '%';
 
-                // 更新概率分布显示
                 if (probabilities) {
                     document.getElementById('probLow').innerText = (probabilities.low * 100).toFixed(1) + '%';
                     document.getElementById('probMedium').innerText = (probabilities.medium * 100).toFixed(1) + '%';
@@ -866,32 +965,32 @@
                 itemDiv.className = 'history-item';
                 itemDiv.id = id;
                 itemDiv.innerHTML = `
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                <div>
-                    <div class="label-text">日期</div>
-                    <input type="date" class="history-input" id="date-${id}" value="${date}">
-                </div>
-                <div>
-                    <div class="label-text">水位 (cm/m)</div>
-                    <input type="number" class="history-input" id="waterLevel-${id}" placeholder="52.5" value="${waterLevel}" step="0.1" min="0">
-                </div>
-                <div>
-                    <div class="label-text">降水量 (mm)</div>
-                    <input type="number" class="history-input" id="precipitation-${id}" placeholder="10" value="${precipitation}" step="0.1" min="0">
-                </div>
-                <div>
-                    <div class="label-text">温度 (°C)</div>
-                    <input type="number" class="history-input" id="temperature-${id}" placeholder="25" value="${temperature}" step="0.1" min="-50" max="100">
-                </div>
-            </div>
-            <div style="display:flex; margin-top:8px;">
-                <div style="flex:1;">
-                    <div class="label-text">湿度 (%)</div>
-                    <input type="number" class="history-input" id="humidity-${id}" placeholder="70" value="${humidity}" min="0" max="100" step="0.1">
-                </div>
-                <button class="remove-history-btn" onclick="HistoryDataManager.removeItem('${id}')">删除</button>
-            </div>
-        `;
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <div>
+                            <div class="label-text">日期</div>
+                            <input type="date" class="history-input" id="date-${id}" value="${date}">
+                        </div>
+                        <div>
+                            <div class="label-text">水位 (cm/m)</div>
+                            <input type="number" class="history-input" id="waterLevel-${id}" placeholder="52.5" value="${waterLevel}" step="0.1" min="0">
+                        </div>
+                        <div>
+                            <div class="label-text">降水量 (mm)</div>
+                            <input type="number" class="history-input" id="precipitation-${id}" placeholder="10" value="${precipitation}" step="0.1" min="0">
+                        </div>
+                        <div>
+                            <div class="label-text">温度 (°C)</div>
+                            <input type="number" class="history-input" id="temperature-${id}" placeholder="25" value="${temperature}" step="0.1" min="-50" max="100">
+                        </div>
+                    </div>
+                    <div style="display:flex; margin-top:8px;">
+                        <div style="flex:1;">
+                            <div class="label-text">湿度 (%)</div>
+                            <input type="number" class="history-input" id="humidity-${id}" placeholder="70" value="${humidity}" min="0" max="100" step="0.1">
+                        </div>
+                        <button class="remove-history-btn" onclick="HistoryDataManager.removeItem('${id}')">删除</button>
+                    </div>
+                `;
 
                 return itemDiv;
             }
@@ -921,7 +1020,6 @@
                     const temperature = parseFloat(document.getElementById(`temperature-${itemId}`).value);
                     const humidity = parseFloat(document.getElementById(`humidity-${itemId}`).value);
 
-                    // 验证数据完整性
                     if (date && !isNaN(waterLevel) && !isNaN(precipitation) && !isNaN(temperature) && !isNaN(humidity)) {
                         historyData.push({
                             date: date,
@@ -936,9 +1034,7 @@
                 return historyData;
             }
 
-            // 初始化示例数据
             function initializeWithSampleData() {
-                // 添加14天的示例数据
                 for (let i = 14; i > 0; i--) {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
@@ -946,26 +1042,21 @@
 
                     addHistoryItem(
                         dateString,
-                        50 + Math.random() * 5,     // 水位 50-55
-                        5 + Math.random() * 10,     // 降水量 5-15
-                        20 + Math.random() * 10,    // 温度 20-30
-                        60 + Math.random() * 30     // 湿度 60-90
+                        50 + Math.random() * 5,
+                        5 + Math.random() * 10,
+                        20 + Math.random() * 10,
+                        60 + Math.random() * 30
                     );
                 }
             }
 
-            // 批量添加历史数据
             function addHistoryDataBatch(historyArray) {
-                // 清空现有数据
                 clearAllHistoryItems();
-
-                // 添加新数据
                 historyArray.forEach(item => {
                     addHistoryItem(item.date, item.water_level, item.precipitation, item.temperature, item.humidity);
                 });
             }
 
-            // 清空所有历史数据
             function clearAllHistoryItems() {
                 const container = document.getElementById('historyInputsContainer');
                 while (container.firstChild) {
@@ -987,7 +1078,6 @@
         // 模块五：CSV 文件解析模块
         // ----------------------------------------------------------------------------
         const CSVParser = (function () {
-            // 解析CSV文件内容
             function parseCSV(csvText) {
                 const lines = csvText.split('\n');
                 const headers = lines[0].split(',').map(header => header.trim());
@@ -995,17 +1085,16 @@
 
                 for (let i = 1; i < lines.length; i++) {
                     const currentLine = lines[i].trim();
-                    if (!currentLine) continue; // 跳过空行
+                    if (!currentLine) continue;
 
                     const values = currentLine.split(',');
-                    if (values.length !== headers.length) continue; // 跳过格式不正确的行
+                    if (values.length !== headers.length) continue;
 
                     const obj = {};
                     for (let j = 0; j < headers.length; j++) {
                         obj[headers[j]] = values[j].trim();
                     }
 
-                    // 验证必需字段
                     if (obj['date'] && obj['water_level'] && obj['precipitation'] && obj['temperature'] && obj['humidity']) {
                         results.push({
                             date: obj['date'],
@@ -1020,7 +1109,6 @@
                 return results;
             }
 
-            // 验证数据格式
             function validateData(dataArray) {
                 for (let i = 0; i < dataArray.length; i++) {
                     const item = dataArray[i];
@@ -1033,7 +1121,6 @@
                 return true;
             }
 
-            // 验证日期格式
             function isValidDate(dateString) {
                 const date = new Date(dateString);
                 return date instanceof Date && !isNaN(date);
@@ -1049,7 +1136,7 @@
             if (!file) return;
 
             if (file.name.split('.').pop().toLowerCase() !== 'csv') {
-                showViewerMessage('请选择CSV文件', true);
+                showViewerMessage('请选择 CSV 文件', true);
                 return;
             }
 
@@ -1060,24 +1147,22 @@
                     const parsedData = CSVParser.parseCSV(csvText);
 
                     if (parsedData.length === 0) {
-                        showViewerMessage('CSV文件格式不正确或为空', true);
+                        showViewerMessage('CSV 文件格式不正确或为空', true);
                         return;
                     }
 
                     if (!CSVParser.validateData(parsedData)) {
-                        showViewerMessage('CSV数据格式不正确，请检查数据', true);
+                        showViewerMessage('CSV 数据格式不正确，请检查数据', true);
                         return;
                     }
 
-                    // 添加数据到历史记录
                     HistoryDataManager.addHistoryDataBatch(parsedData);
 
-                    // 显示成功信息
                     document.getElementById('fileInfo').innerHTML = `<span style="color: #00FF9D;">✓ 已导入 ${parsedData.length} 条记录</span>`;
                     showViewerMessage(`成功导入 ${parsedData.length} 条历史数据`, false);
                 } catch (error) {
-                    console.error('CSV解析错误:', error);
-                    showViewerMessage('CSV文件解析失败', true);
+                    console.error('CSV 解析错误:', error);
+                    showViewerMessage('CSV 文件解析失败', true);
                 }
             };
             reader.onerror = function () {
@@ -1086,24 +1171,10 @@
             reader.readAsText(file);
         }
 
-        // 触发CSV文件上传
         function triggerCSVUpload() {
-            // 创建一个隐藏的文件输入元素
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.csv';
-
-            fileInput.onchange = function (e) {
-                const file = e.target.files[0];
-                if (file) {
-                    handleFileUpload(file);
-                }
-            };
-
-            fileInput.click(); // 触发文件选择对话框
+            document.getElementById('csvFile').click();
         }
 
-        // 下载示例CSV文件
         function downloadSampleCSV() {
             const csvContent = "data:text/csv;charset=utf-8," +
                 "date,water_level,precipitation,temperature,humidity\n" +
@@ -1170,15 +1241,12 @@
                     console.error('预测请求失败:', error);
                     showViewerMessage('预测服务暂时不可用，使用模拟数据', true);
 
-                    // 模拟数据生成逻辑
                     const avgWaterLevel = data.historical_data.reduce((sum, item) => sum + item.water_level, 0) / data.historical_data.length;
                     const avgPrecipitation = data.historical_data.reduce((sum, item) => sum + item.precipitation, 0) / data.historical_data.length;
 
-                    // 基于水位和降水量计算风险
                     let simulatedRisk = (avgWaterLevel / 100 + avgPrecipitation / 50) / 2;
-                    simulatedRisk = Math.min(1, Math.max(0, simulatedRisk)); // 限制在0-1范围内
+                    simulatedRisk = Math.min(1, Math.max(0, simulatedRisk));
 
-                    // 计算概率分布
                     const highProb = simulatedRisk;
                     const mediumProb = (1 - simulatedRisk) * 0.5;
                     const lowProb = (1 - simulatedRisk) * 0.5;
@@ -1203,16 +1271,13 @@
         // 全局预测流程控制器
         // ----------------------------------------------------------------------------
         window.handlePrediction = async function () {
-            // 获取所有历史数据
             const historyData = HistoryDataManager.getAllHistoryData();
 
-            // 验证数据量
             if (historyData.length < 14) {
-                showViewerMessage(`需要至少14天数据，当前只有${historyData.length}天`, true);
+                showViewerMessage(`需要至少 14 天数据，当前只有${historyData.length}天`, true);
                 return;
             }
 
-            // 按日期排序
             historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
 
             const inputData = {
@@ -1254,34 +1319,41 @@
         }
 
         // ----------------------------------------------------------------------------
-            // 初始化系统
-            // ----------------------------------------------------------------------------
-            (async function initSystem() {
-                TwinRenderer.init();
+        // 初始化系统
+        // ----------------------------------------------------------------------------
+        (async function initSystem() {
+            TwinRenderer.init();
 
-                // 加载 GLB 模型 - 使用相对路径（适用于 GitHub Pages）
-                const modelPath = 'my_digital_twin_model.glb';
-                console.log('🔍 正在加载模型:', modelPath);
-                console.log('📍 当前页面路径:', window.location.href);
+            const modelPath = 'my_digital_twin_model.glb';
+            console.log('🔍 正在加载模型:', modelPath);
+            console.log('📍 当前页面路径:', window.location.href);
+            
+            try {
+                const response = await fetch(modelPath, { method: 'HEAD' });
+                if (!response.ok) {
+                    throw new Error(`模型文件不存在：HTTP ${response.status}`);
+                }
                 TwinRenderer.loadRealModel(modelPath);
+            } catch (error) {
+                console.error('❌ 模型文件检查失败:', error);
+                showViewerMessage('⚠️ 未找到模型文件 my_digital_twin_model.glb\n请使用 HTTP 服务器访问', true);
+                document.getElementById('loadModelStatus').innerText = '⚠️ 模型未加载';
+                document.getElementById('loadModelStatus').style.color = '#FF3B30';
+            }
 
-                // 初始化历史数据输入区域，添加示例数据
-                HistoryDataManager.initializeWithSampleData();
+            HistoryDataManager.initializeWithSampleData();
 
-                // 设置今天的日期作为默认值
-                const today = new Date().toISOString().split('T')[0];
-                const dateInputs = document.querySelectorAll('input[type="date"]');
-                dateInputs.forEach(input => {
-                    if (!input.value) input.value = today;
-                });
-            })();
+            const today = new Date().toISOString().split('T')[0];
+            const dateInputs = document.querySelectorAll('input[type="date"]');
+            dateInputs.forEach(input => {
+                if (!input.value) input.value = today;
+            });
+        })();
 
-        // 控制台手动加载模型接口
         window.loadRealTwinModel = (path) => {
             TwinRenderer.loadRealModel(path);
         };
 
-        // 暴露历史数据管理器到全局作用域
         window.HistoryDataManager = HistoryDataManager;
     </script>
 
