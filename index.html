@@ -21,34 +21,39 @@
                     const loaderScript = document.createElement('script');
                     loaderScript.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js';
                     loaderScript.onload = () => {
+                        console.log('✅ GLTFLoader 加载成功');
                         // 加载OrbitControls
                         const controlsScript = document.createElement('script');
                         controlsScript.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js';
                         controlsScript.onload = () => {
+                            console.log('✅ OrbitControls 加载成功');
                             console.log('✅ Three.js 扩展加载完成');
                             resolve();
                         };
                         controlsScript.onerror = () => {
-                            console.warn('⚠️ 无法从CDN加载OrbitControls，使用内置版本');
-                            // 内置OrbitControls版本
+                            console.error('❌ 无法从CDN加载OrbitControls');
+                            // 定义内置OrbitControls版本
                             defineOrbitControls();
+                            console.warn('⚠️ 已使用内置OrbitControls');
                             resolve();
                         };
                         document.head.appendChild(controlsScript);
                     };
                     loaderScript.onerror = () => {
-                        console.warn('⚠️ 无法从CDN加载GLTFLoader，使用内置版本');
-                        // 内置GLTFLoader版本
+                        console.error('❌ 无法从CDN加载GLTFLoader');
+                        // 定义内置GLTFLoader版本
                         defineGLTFLoader();
-                        // 内置OrbitControls版本
+                        console.warn('⚠️ 已使用内置GLTFLoader');
+                        // 定义内置OrbitControls版本
                         defineOrbitControls();
+                        console.warn('⚠️ 已使用内置OrbitControls');
                         resolve();
                     };
                     document.head.appendChild(loaderScript);
                 });
             }
 
-            // 内置GLTFLoader定义
+            // 内置GLTFLoader定义 - 仅用于演示目的
             function defineGLTFLoader() {
                 if (typeof THREE !== 'undefined' && typeof THREE.GLTFLoader === 'undefined') {
                     THREE.GLTFLoader = function (manager) {
@@ -72,7 +77,7 @@
                                     if (onError) {
                                         onError(e);
                                     } else {
-                                        console.error(e);
+                                        console.error('GLTFLoader Parse Error:', e);
                                     }
 
                                     scope.manager.itemError(url);
@@ -81,17 +86,19 @@
                         };
 
                         this.parse = function (data, onLoad, path) {
-                            console.warn('⚠️ 使用简化版GLTFLoader，仅用于演示目的');
+                            console.warn('⚠️ 当前使用的是简化版GLTFLoader，无法加载真实的GLB模型');
+                            console.warn('⚠️ 请确保CDN链接正常工作或提供正确的模型文件路径');
 
-                            // 创建一个简单的场景作为占位符
+                            // 创建一个稍微复杂一点的场景作为占位符
                             var scene = new THREE.Group();
 
-                            // 创建一个简单的几何体作为占位符
+                            // 创建一个带纹理的几何体
                             var geometry = new THREE.BoxGeometry(2, 2, 2);
                             var material = new THREE.MeshStandardMaterial({
                                 color: 0x1E293B,
                                 roughness: 0.3,
-                                metalness: 0.8
+                                metalness: 0.8,
+                                wireframe: false
                             });
                             var mesh = new THREE.Mesh(geometry, material);
                             scene.add(mesh);
@@ -102,6 +109,20 @@
                                 new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
                             );
                             mesh.add(wireframe);
+
+                            // 添加一些细节
+                            for (let i = 0; i < 5; i++) {
+                                const detailBox = new THREE.Mesh(
+                                    new THREE.BoxGeometry(0.3, 0.3, 0.3),
+                                    new THREE.MeshStandardMaterial({ color: 0x00E5FF })
+                                );
+                                detailBox.position.set(
+                                    (Math.random() - 0.5) * 2,
+                                    (Math.random() - 0.5) * 2,
+                                    (Math.random() - 0.5) * 2
+                                );
+                                scene.add(detailBox);
+                            }
 
                             onLoad({ scene: scene });
                         };
@@ -143,7 +164,7 @@
                         this.maxPolarAngle = Math.PI; // radians
                         this.minAzimuthAngle = -Infinity; // radians
                         this.maxAzimuthAngle = Infinity; // radians
-                        this.enableDamping = false;
+                        this.enableDamping = true; // 启用阻尼效果
                         this.dampingFactor = 0.05;
                         this.enableZoom = true;
                         this.zoomSpeed = 1.0;
