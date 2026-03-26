@@ -369,6 +369,10 @@
         .collapsed .collapse-icon {
             transform: rotate(-90deg);
         }
+
+        .collapsible-header:hover {
+            background: #263238;
+        }
     </style>
 </head>
 
@@ -520,15 +524,16 @@
         </main>
 
 
-    <!-- FOOTER -->
-    <footer style="background:#060A0E; border-top:3px solid #1E2A36; display:flex; align-items:center; padding:0 24px;">
-        <div style="display:flex; gap:20px; font-size:10px; color:#334155; font-weight:700;">
-            <span style="display:flex; align-items:center; gap:6px;"><span
-                    style="width:6px; height:6px; background:#00E5FF; display:inline-block;"></span> 数据模拟：已启用</span>
-            <span style="border-left:1px solid #1E2A36; padding-left:20px;">洪水风险预测接口 (POST /predict)</span>
-            <span id="loadModelStatus" style="margin-left:auto; color:#00E5FF;">正在加载模型...</span>
-        </div>
-    </footer>
+        <!-- FOOTER -->
+        <footer
+            style="background:#060A0E; border-top:3px solid #1E2A36; display:flex; align-items:center; padding:0 24px;">
+            <div style="display:flex; gap:20px; font-size:10px; color:#334155; font-weight:700;">
+                <span style="display:flex; align-items:center; gap:6px;"><span
+                        style="width:6px; height:6px; background:#00E5FF; display:inline-block;"></span> 数据模拟：已启用</span>
+                <span style="border-left:1px solid #1E2A36; padding-left:20px;">洪水风险预测接口 (POST /predict)</span>
+                <span id="loadModelStatus" style="margin-left:auto; color:#00E5FF;">正在加载模型...</span>
+            </div>
+        </footer>
 
     </div>
 
@@ -570,6 +575,8 @@
             let waterMesh = null;
 
             function init() {
+                console.log('🚀 3D渲染器初始化开始...');
+
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(0x05070a);
 
@@ -594,6 +601,7 @@
                 controls.maxDistance = 15;
                 controls.maxPolarAngle = Math.PI / 2 + 0.1;
 
+                // 添加光源
                 const ambientLight = new THREE.AmbientLight(0x405060, 0.5);
                 scene.add(ambientLight);
 
@@ -610,6 +618,7 @@
                 grid.position.y = -1;
                 scene.add(grid);
 
+                // 创建默认几何体
                 const geo = new THREE.BoxGeometry(2, 2, 2);
                 const mat = new THREE.MeshStandardMaterial({
                     color: 0x1E293B, roughness: 0.3, metalness: 0.8, emissiveIntensity: 0.05
@@ -619,12 +628,14 @@
                 twinModel.receiveShadow = true;
                 scene.add(twinModel);
 
+                // 线框边缘
                 const wireframe = new THREE.LineSegments(
                     new THREE.EdgesGeometry(geo),
                     new THREE.LineBasicMaterial({ color: 0x00E5FF, linewidth: 2 })
                 );
                 twinModel.add(wireframe);
 
+                // 环境装饰柱体
                 const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
                 for (let i = 0; i < 4; i++) {
                     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6), pillarMat);
@@ -636,8 +647,9 @@
                     scene.add(pillar);
                 }
 
+                // 键盘事件监听
                 window.addEventListener('keydown', (e) => {
-                    switch(e.key.toLowerCase()) {
+                    switch (e.key.toLowerCase()) {
                         case 'r':
                             controls.reset();
                             camera.position.set(5, 5, 5);
@@ -653,12 +665,23 @@
                     }
                 });
 
+                console.log('✅ 3D渲染器初始化完成');
                 animate();
             }
 
             function animate() {
                 requestAnimationFrame(animate);
                 controls.update();
+
+                // 如果有洪水风险，显示动态水面
+                const riskElement = document.getElementById('riskValue');
+                if (riskElement) {
+                    const currentRisk = parseFloat(riskElement.innerText);
+                    if (!isNaN(currentRisk) && currentRisk > 0.5) {
+                        animateWaterSurface(currentRisk);
+                    }
+                }
+
                 renderer.render(scene, camera);
             }
 
@@ -708,7 +731,9 @@
                 renderer.setSize(viewer.clientWidth, viewer.clientHeight);
             });
 
-            function getTwinModel() { return twinModel; }
+            function getTwinModel() {
+                return twinModel;
+            }
 
             function loadRealModel(gltfPath) {
                 console.log('🎯 开始加载 GLB 模型');
@@ -837,7 +862,6 @@
                 </div>
                 <div id="loadingProgressText" style="color: #64748B; font-size: 11px; margin-top: 6px;">${initialPercent}%</div>
             `;
-            const viewer = document.getElementById('viewer');
             viewer.appendChild(progressDiv);
         }
 
@@ -883,8 +907,14 @@
 
             function applyRisk(risk) {
                 const model = TwinRenderer.getTwinModel();
-                if (!model) return;
+                if (!model) {
+                    console.warn('⚠️ 模型对象不存在');
+                    return;
+                }
+
+                console.log('🔄 应用风险映射:', risk);
                 const color = riskToColor(risk);
+
                 model.traverse((node) => {
                     if (node.isMesh && node.material) {
                         const materials = Array.isArray(node.material) ? node.material : [node.material];
@@ -913,6 +943,8 @@
         // ----------------------------------------------------------------------------
         const UIUpdater = (function () {
             function updateUI(risk, riskLevel, highProb, probabilities = null) {
+                console.log('📊 更新UI界面:', risk, riskLevel, highProb);
+
                 document.getElementById('riskValue').innerText = risk.toFixed(2);
                 document.getElementById('highRiskProb').innerText = (highProb * 100).toFixed(1) + '%';
                 document.getElementById('riskProgress').style.width = (risk * 100) + '%';
@@ -996,6 +1028,7 @@
             }
 
             function addHistoryItem(date = '', waterLevel = '', precipitation = '', temperature = '', humidity = '') {
+                console.log('📝 添加历史数据项');
                 const container = document.getElementById('historyInputsContainer');
                 const item = createHistoryItem(date, waterLevel, precipitation, temperature, humidity);
                 container.appendChild(item);
@@ -1009,6 +1042,7 @@
             }
 
             function getAllHistoryData() {
+                console.log('🔍 获取所有历史数据');
                 const items = document.querySelectorAll('[id^="history-"]');
                 const historyData = [];
 
@@ -1031,10 +1065,12 @@
                     }
                 }
 
+                console.log('📋 历史数据数量:', historyData.length);
                 return historyData;
             }
 
             function initializeWithSampleData() {
+                console.log('🌱 初始化示例数据');
                 for (let i = 14; i > 0; i--) {
                     const date = new Date();
                     date.setDate(date.getDate() - i);
@@ -1051,6 +1087,7 @@
             }
 
             function addHistoryDataBatch(historyArray) {
+                console.log('📥 批量添加历史数据:', historyArray.length, '条');
                 clearAllHistoryItems();
                 historyArray.forEach(item => {
                     addHistoryItem(item.date, item.water_level, item.precipitation, item.temperature, item.humidity);
@@ -1079,6 +1116,7 @@
         // ----------------------------------------------------------------------------
         const CSVParser = (function () {
             function parseCSV(csvText) {
+                console.log('📄 解析CSV文件');
                 const lines = csvText.split('\n');
                 const headers = lines[0].split(',').map(header => header.trim());
                 const results = [];
@@ -1106,6 +1144,7 @@
                     }
                 }
 
+                console.log('✅ CSV解析完成，共', results.length, '条记录');
                 return results;
             }
 
@@ -1133,6 +1172,7 @@
         // 模块六：文件上传处理模块
         // ----------------------------------------------------------------------------
         function handleFileUpload(file) {
+            console.log('📤 处理文件上传:', file.name);
             if (!file) return;
 
             if (file.name.split('.').pop().toLowerCase() !== 'csv') {
@@ -1207,6 +1247,9 @@
         // ----------------------------------------------------------------------------
         const PredictionService = (function () {
             async function predict(data) {
+                console.log('🔮 开始预测风险');
+                console.log('📊 发送数据:', data);
+
                 const url = 'https://project-digital-twin.zeabur.app/predict';
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -1227,6 +1270,7 @@
                     const result = await response.json();
 
                     if (result.success) {
+                        console.log('✅ 预测成功:', result);
                         return {
                             risk: result.risk,
                             risk_level: result.risk_level,
@@ -1241,17 +1285,20 @@
                     console.error('预测请求失败:', error);
                     showViewerMessage('预测服务暂时不可用，使用模拟数据', true);
 
+                    // 模拟数据生成逻辑
                     const avgWaterLevel = data.historical_data.reduce((sum, item) => sum + item.water_level, 0) / data.historical_data.length;
                     const avgPrecipitation = data.historical_data.reduce((sum, item) => sum + item.precipitation, 0) / data.historical_data.length;
 
+                    // 基于水位和降水量计算风险
                     let simulatedRisk = (avgWaterLevel / 100 + avgPrecipitation / 50) / 2;
-                    simulatedRisk = Math.min(1, Math.max(0, simulatedRisk));
+                    simulatedRisk = Math.min(1, Math.max(0, simulatedRisk)); // 限制在0-1范围内
 
+                    // 计算概率分布
                     const highProb = simulatedRisk;
                     const mediumProb = (1 - simulatedRisk) * 0.5;
                     const lowProb = (1 - simulatedRisk) * 0.5;
 
-                    return {
+                    const result = {
                         risk: simulatedRisk,
                         risk_level: simulatedRisk < 0.4 ? '低风险' : simulatedRisk < 0.7 ? '中风险' : '高风险',
                         high_risk_probability: highProb,
@@ -1261,6 +1308,9 @@
                             high: highProb
                         }
                     };
+
+                    console.log('🧪 模拟数据结果:', result);
+                    return result;
                 }
             }
 
@@ -1271,18 +1321,7 @@
         // 全局预测流程控制器
         // ----------------------------------------------------------------------------
         window.handlePrediction = async function () {
-            const historyData = HistoryDataManager.getAllHistoryData();
-
-            if (historyData.length < 14) {
-                showViewerMessage(`需要至少 14 天数据，当前只有${historyData.length}天`, true);
-                return;
-            }
-
-            historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            const inputData = {
-                historical_data: historyData
-            };
+            console.log('⚡ 开始洪水风险评估流程');
 
             const btn = document.getElementById('predictBtn');
             const originalHTML = btn.innerHTML;
@@ -1290,11 +1329,34 @@
             btn.disabled = true;
 
             try {
+                // 获取所有历史数据
+                const historyData = HistoryDataManager.getAllHistoryData();
+                console.log('📊 历史数据数量:', historyData.length);
+
+                // 验证数据量
+                if (historyData.length < 14) {
+                    showViewerMessage(`需要至少 14 天数据，当前只有${historyData.length}天`, true);
+                    return;
+                }
+
+                // 按日期排序
+                historyData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                const inputData = {
+                    historical_data: historyData
+                };
+
+                console.log('📤 发送预测请求...');
                 const result = await PredictionService.predict(inputData);
+
+                console.log('🎯 预测结果:', result);
+
                 RiskMapper.applyRisk(result.risk);
                 UIUpdater.updateUI(result.risk, result.risk_level, result.high_risk_probability, result.probabilities);
+
+                console.log('✅ 风险评估完成');
             } catch (e) {
-                console.warn("预测失败", e);
+                console.error("预测失败", e);
                 showViewerMessage('预测过程中出现错误', true);
             } finally {
                 btn.innerHTML = originalHTML;
@@ -1322,38 +1384,57 @@
         // 初始化系统
         // ----------------------------------------------------------------------------
         (async function initSystem() {
-            TwinRenderer.init();
+            console.log('🚀 系统初始化开始...');
 
-            const modelPath = 'my_digital_twin_model.glb';
-            console.log('🔍 正在加载模型:', modelPath);
-            console.log('📍 当前页面路径:', window.location.href);
-            
             try {
-                const response = await fetch(modelPath, { method: 'HEAD' });
-                if (!response.ok) {
-                    throw new Error(`模型文件不存在：HTTP ${response.status}`);
+                // 初始化3D渲染器
+                TwinRenderer.init();
+                console.log('✅ 3D渲染器初始化完成');
+
+                // 尝试加载模型
+                const modelPath = 'my_digital_twin_model.glb';
+                console.log('🔍 检查模型文件:', modelPath);
+
+                try {
+                    const response = await fetch(modelPath, { method: 'HEAD' });
+                    if (response.ok) {
+                        console.log('✅ 模型文件存在，开始加载...');
+                        TwinRenderer.loadRealModel(modelPath);
+                    } else {
+                        console.warn('⚠️ 模型文件不存在，使用默认几何体');
+                        document.getElementById('loadModelStatus').innerText = '⚠️ 默认模型';
+                        document.getElementById('loadModelStatus').style.color = '#FACC15';
+                    }
+                } catch (error) {
+                    console.warn('⚠️ 模型文件检查失败，使用默认几何体:', error);
+                    document.getElementById('loadModelStatus').innerText = '⚠️ 默认模型';
+                    document.getElementById('loadModelStatus').style.color = '#FACC15';
                 }
-                TwinRenderer.loadRealModel(modelPath);
+
+                // 初始化历史数据输入区域，添加示例数据
+                HistoryDataManager.initializeWithSampleData();
+                console.log('✅ 历史数据初始化完成');
+
+                // 设置今天的日期作为默认值
+                const today = new Date().toISOString().split('T')[0];
+                const dateInputs = document.querySelectorAll('input[type="date"]');
+                dateInputs.forEach(input => {
+                    if (!input.value) input.value = today;
+                });
+
+                console.log('✅ 系统初始化完成');
             } catch (error) {
-                console.error('❌ 模型文件检查失败:', error);
-                showViewerMessage('⚠️ 未找到模型文件 my_digital_twin_model.glb\n请使用 HTTP 服务器访问', true);
-                document.getElementById('loadModelStatus').innerText = '⚠️ 模型未加载';
-                document.getElementById('loadModelStatus').style.color = '#FF3B30';
+                console.error('❌ 系统初始化失败:', error);
+                showViewerMessage('系统初始化失败，请刷新页面重试', true);
             }
-
-            HistoryDataManager.initializeWithSampleData();
-
-            const today = new Date().toISOString().split('T')[0];
-            const dateInputs = document.querySelectorAll('input[type="date"]');
-            dateInputs.forEach(input => {
-                if (!input.value) input.value = today;
-            });
         })();
 
+        // 控制台手动加载模型接口
         window.loadRealTwinModel = (path) => {
             TwinRenderer.loadRealModel(path);
         };
 
+        // 暴露历史数据管理器到全局作用域
         window.HistoryDataManager = HistoryDataManager;
     </script>
 
