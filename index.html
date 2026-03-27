@@ -9,8 +9,7 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <!-- 加载完整版Three.js，包含所有扩展 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js"></script>
-    
-    <!-- 加载Three.js扩展 -->
+
     <script>
         // 由于CDN可能不稳定，添加错误处理并提供备用方案
         if (typeof THREE !== 'undefined') {
@@ -3390,11 +3389,7 @@
 
             // 尝试多种可能的模型文件路径，适用于GitHub Pages
             const modelPaths = [
-                './my_digital_twin_model.glb',           // 当前目录
-                './assets/my_digital_twin_model.glb',    // assets目录
-                './models/my_digital_twin_model.glb',    // models目录
-                './3d/my_digital_twin_model.glb',        // 3d目录
-                'my_digital_twin_model.glb'             // 相对于根目录
+                'https://github.com/xjblsy/digital_page_3d_model/blob/main/my_digital_twin_model.glb  '
             ];
 
             let attempt = 0;
