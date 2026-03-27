@@ -610,21 +610,6 @@
         }
     </style>
     
-    <script>
-        function waitForThreeExtensions() {
-            return new Promise((resolve) => {
-                if (window.THREE && window.THREE.GLTFLoader && window.THREE.OrbitControls) {
-                    resolve();
-                } else {
-                    window.addEventListener('three-extensions-ready', () => resolve(), { once: true });
-                    setTimeout(() => {
-                        if (window.THREE && window.THREE.GLTFLoader && window.THREE.OrbitControls) resolve();
-                        else console.warn('⚠️ Three.js 扩展加载超时');
-                    }, 5000);
-                }
-            });
-        }
-    </script>
 
     <script>
         // ============================================================================
@@ -1858,8 +1843,8 @@
             // ----------------------------------------------------------------------------
             // 初始化系统
             // ----------------------------------------------------------------------------
-            (async function initSystem() {
-                await waitForThreeExtensions();   // 确保扩展已加载
+        document.addEventListener('DOMContentLoaded', async () => {
+            await window.waitForThreeExtensions();
                 console.log('🚀 系统初始化开始...');
 
                 try {
